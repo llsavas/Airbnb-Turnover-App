@@ -1,0 +1,101 @@
+import type { ComponentProps, ReactNode } from "react";
+import type { CleaningStatus } from "@/lib/types";
+import { STATUS_LABELS } from "@/lib/types";
+
+function cx(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+const buttonVariants = {
+  primary: "bg-brand-700 text-white hover:bg-brand-800",
+  secondary: "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
+  danger: "bg-white text-red-700 ring-1 ring-red-300 hover:bg-red-50",
+  ghost: "text-slate-700 hover:bg-slate-100",
+};
+
+export function buttonClass(variant: keyof typeof buttonVariants = "primary", extra?: string) {
+  return cx(
+    "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60",
+    buttonVariants[variant],
+    extra,
+  );
+}
+
+export function Card({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      className={cx("rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5", className)}
+      {...props}
+    />
+  );
+}
+
+export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{title}</h1>
+      {children && <div className="flex flex-wrap gap-2">{children}</div>}
+    </div>
+  );
+}
+
+export function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+    </label>
+  );
+}
+
+const inputClass =
+  "block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-base text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 focus:outline-none sm:text-sm";
+
+export function Input({ className, ...props }: ComponentProps<"input">) {
+  return <input className={cx(inputClass, className)} {...props} />;
+}
+
+export function Select({ className, ...props }: ComponentProps<"select">) {
+  return <select className={cx(inputClass, "pr-8", className)} {...props} />;
+}
+
+export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
+  return <textarea className={cx(inputClass, className)} rows={3} {...props} />;
+}
+
+const statusStyles: Record<CleaningStatus, string> = {
+  scheduled: "bg-sky-50 text-sky-700 ring-sky-200",
+  in_progress: "bg-amber-50 text-amber-800 ring-amber-200",
+  completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  cancelled: "bg-slate-100 text-slate-500 ring-slate-200",
+};
+
+export function StatusBadge({ status }: { status: CleaningStatus }) {
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1",
+        statusStyles[status],
+      )}
+    >
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+export function EmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+      {children}
+    </div>
+  );
+}
