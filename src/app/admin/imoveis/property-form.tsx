@@ -8,18 +8,30 @@ export function PropertyForm({
   action,
   property,
   cleaners,
+  buildings,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   property?: Property;
   cleaners: Profile[];
+  buildings: string[];
 }) {
   return (
     <ActionForm action={action} className="space-y-5">
       <Card className="space-y-4">
         <h2 className="font-semibold">Dados do imóvel</h2>
-        <Field label="Nome">
-          <Input name="name" defaultValue={property?.name} required placeholder="Ex.: Apto 302 Copacabana" />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+          <Field label="Nome">
+            <Input name="name" defaultValue={property?.name} required placeholder="Ex.: Apto 302 Copacabana" />
+          </Field>
+          <Field label="Prédio" hint="Escolha um existente ou digite um novo.">
+            <Input name="building" list="buildings" defaultValue={property?.building ?? ""} placeholder="Ex.: Skyline" />
+            <datalist id="buildings">
+              {buildings.map((b) => (
+                <option key={b} value={b} />
+              ))}
+            </datalist>
+          </Field>
+        </div>
         <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
           <Field label="Endereço">
             <Input name="address" defaultValue={property?.address ?? ""} />

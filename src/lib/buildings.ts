@@ -1,0 +1,25 @@
+export const NO_BUILDING = "Sem prédio";
+
+// Splits items into buildings (alphabetical, "Sem prédio" last), keeping the
+// order of the items inside each building.
+export function groupByBuilding<T>(
+  items: T[],
+  buildingOf: (item: T) => string | null | undefined,
+): { building: string; items: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const building = buildingOf(item) || NO_BUILDING;
+    groups.set(building, [...(groups.get(building) ?? []), item]);
+  }
+  return [...groups.entries()]
+    .map(([building, groupItems]) => ({ building, items: groupItems }))
+    .sort((a, b) =>
+      a.building === NO_BUILDING ? 1 : b.building === NO_BUILDING ? -1 : a.building.localeCompare(b.building, "pt-BR"),
+    );
+}
+
+export function buildingNames(properties: { building: string | null }[]): string[] {
+  return [...new Set(properties.map((p) => p.building).filter((b): b is string => !!b))].sort((a, b) =>
+    a.localeCompare(b, "pt-BR"),
+  );
+}

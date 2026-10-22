@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Turnover — Limpezas",
-    short_name: "Turnover",
+    name: "AirComplex Cleaning 🧼",
+    short_name: "AirComplex",
     description: "Gestão de limpezas dos imóveis",
     start_url: "/",
     display: "standalone",

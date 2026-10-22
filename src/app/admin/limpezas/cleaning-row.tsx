@@ -22,6 +22,7 @@ export function CleaningRow({
       <Link href={`/admin/limpezas/${cleaning.id}`} className="min-w-0 hover:underline">
         <p className="truncate font-medium">{cleaning.property?.name ?? "Imóvel removido"}</p>
         <p className="text-sm text-slate-500">
+          {cleaning.property?.building && <span>{cleaning.property.building} · </span>}
           {timeWindow || "Horário a definir"}
           {cleaning.next_checkin && cleaning.next_checkin === cleaning.date && (
             <span className="ml-2 font-medium text-amber-700">Check-in no mesmo dia</span>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import { FormError, requiredText, text, toFormState, type FormState } from "@/lib/form";
 
@@ -13,6 +14,7 @@ function propertyFromForm(formData: FormData) {
   }
   return {
     name: requiredText(formData, "name", "Nome"),
+    building: text(formData, "building"),
     address: text(formData, "address"),
     city: text(formData, "city"),
     access_instructions: text(formData, "access_instructions"),
@@ -93,4 +95,49 @@ export async function importProperties(_: FormState, formData: FormData): Promis
   }
   revalidatePath("/admin/imoveis");
   return { success: `${count} imóveis importados.` };
+}
+
+// Makes one person responsible for a whole building: sets them as default
+// cleaner of every apartment in it and assigns the upcoming cleanings that
+// don't have anyone yet.
+export async function setBuildingCleaner(
+  building: string,
+  _: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  let assigned = 0;
+  try {
+    await requireAdmin();
+    const cleanerId = requiredText(formData, "cleaner_id", "Responsável");
+    const supabase = await createClient();
+
+    const { data: properties, error } = await supabase
+      .from("properties")
+      .update({ default_cleaner_id: cleanerId })
+      .eq("building", building)
+      .eq("active", true)
+      .select("id");
+    if (error) throw error;
+
+    const { data: cleanings, error: assignError } = await supabase
+      .from("cleanings")
+      .update({ cleaner_id: cleanerId })
+      .in(
+        "property_id",
+        properties.map((p) => p.id),
+      )
+      .is("cleaner_id", null)
+      .eq("status", "scheduled")
+      .gte("date", today())
+      .select("id");
+    if (assignError) throw assignError;
+    assigned = cleanings.length;
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidatePath("/admin", "layout");
+  revalidatePath("/limpezas", "layout");
+  return {
+    success: `Responsável definido. ${assigned} ${assigned === 1 ? "limpeza atribuída" : "limpezas atribuídas"}.`,
+  };
 }

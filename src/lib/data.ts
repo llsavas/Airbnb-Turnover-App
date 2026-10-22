@@ -10,7 +10,7 @@ import type {
 } from "@/lib/types";
 
 export const CLEANING_SELECT =
-  "*, property:properties(id, name, address, city), cleaner:profiles(id, full_name)";
+  "*, property:properties(id, name, building, address, city), cleaner:profiles(id, full_name)";
 
 export async function listCleaners({ includeInactive = false } = {}): Promise<Profile[]> {
   const supabase = await createClient();
@@ -27,7 +27,7 @@ export async function listCleaners({ includeInactive = false } = {}): Promise<Pr
 
 export async function listProperties({ includeInactive = false } = {}): Promise<Property[]> {
   const supabase = await createClient();
-  let query = supabase.from("properties").select("*").order("name");
+  let query = supabase.from("properties").select("*").order("building").order("name");
   if (!includeInactive) query = query.eq("active", true);
   const { data, error } = await query;
   if (error) throw error;

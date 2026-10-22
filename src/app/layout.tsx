@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Turnover", template: "%s · Turnover" },
+  title: { default: "AirComplex Cleaning 🧼", template: "%s · AirComplex Cleaning" },
   description: "Gestão de limpezas dos imóveis",
-  appleWebApp: { capable: true, title: "Turnover", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "AirComplex", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

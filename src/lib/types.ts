@@ -13,6 +13,7 @@ export type Profile = {
 export type Property = {
   id: string;
   name: string;
+  building: string | null;
   address: string | null;
   city: string | null;
   access_instructions: string | null;
@@ -43,7 +44,7 @@ export type Cleaning = {
 };
 
 export type CleaningWithRelations = Cleaning & {
-  property: Pick<Property, "id" | "name" | "address" | "city"> | null;
+  property: Pick<Property, "id" | "name" | "building" | "address" | "city"> | null;
   cleaner: Pick<Profile, "id" | "full_name"> | null;
 };
 

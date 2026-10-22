@@ -19,7 +19,9 @@ export function AppShell({
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2 font-bold text-slate-900">
             <Image src="/icon.svg" alt="" width={28} height={28} unoptimized className="h-7 w-7" />
-            Turnover
+            <span>
+              AirComplex <span className="hidden sm:inline">Cleaning</span> 🧼
+            </span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-slate-500 sm:inline">{userName}</span>

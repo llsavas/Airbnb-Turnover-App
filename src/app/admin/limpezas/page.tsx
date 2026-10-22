@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, PageHeader, Select, buttonClass } from "@/components/ui";
-import { listCleaners, listCleanings } from "@/lib/data";
+import { NO_BUILDING, buildingNames, groupByBuilding } from "@/lib/buildings";
+import { listCleaners, listCleanings, listProperties } from "@/lib/data";
 import { addDays, formatDay, formatShortDate, isValidDate, startOfWeek, today } from "@/lib/dates";
 import { CleaningRow } from "./cleaning-row";
 
@@ -11,18 +12,23 @@ export default async function CleaningsPage({ searchParams }: PageProps<"/admin/
   const params = await searchParams;
   const semana = typeof params.semana === "string" ? params.semana : undefined;
   const pessoa = typeof params.pessoa === "string" ? params.pessoa : "";
+  const predio = typeof params.predio === "string" ? params.predio : "";
 
   const weekStart = startOfWeek(isValidDate(semana) ? semana : today());
   const weekEnd = addDays(weekStart, 6);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const [cleanings, cleaners] = await Promise.all([
+  const [allCleanings, cleaners, properties] = await Promise.all([
     listCleanings({ from: weekStart, to: weekEnd, cleanerId: pessoa || undefined }),
     listCleaners(),
+    listProperties(),
   ]);
+  const cleanings = predio
+    ? allCleanings.filter((c) => (c.property?.building ?? NO_BUILDING) === predio)
+    : allCleanings;
 
   const link = (week: string) =>
-    `/admin/limpezas?semana=${week}${pessoa ? `&pessoa=${pessoa}` : ""}`;
+    `/admin/limpezas?semana=${week}${pessoa ? `&pessoa=${pessoa}` : ""}${predio ? `&predio=${encodeURIComponent(predio)}` : ""}`;
   const unassigned = cleanings.filter((c) => !c.cleaner_id && c.status === "scheduled").length;
 
   return (
@@ -59,6 +65,14 @@ export default async function CleaningsPage({ searchParams }: PageProps<"/admin/
               </option>
             ))}
           </Select>
+          <Select name="predio" defaultValue={predio} className="w-auto">
+            <option value="">Todos os prédios</option>
+            {[...buildingNames(properties), NO_BUILDING].map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </Select>
           <button className={buttonClass("secondary")}>Filtrar</button>
         </form>
       </div>
@@ -87,9 +101,18 @@ export default async function CleaningsPage({ searchParams }: PageProps<"/admin/
               {items.length === 0 ? (
                 <p className="px-1 text-sm text-slate-400">Nenhuma limpeza.</p>
               ) : (
-                <Card className="divide-y divide-slate-100 p-0 sm:p-0">
-                  {items.map((c) => (
-                    <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
+                <Card className="p-0 sm:p-0">
+                  {groupByBuilding(items, (c) => c.property?.building).map((group) => (
+                    <div key={group.building}>
+                      <p className="border-b border-slate-100 bg-slate-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase first:rounded-t-xl">
+                        {group.building} · {group.items.length}
+                      </p>
+                      <div className="divide-y divide-slate-100">
+                        {group.items.map((c) => (
+                          <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </Card>
               )}

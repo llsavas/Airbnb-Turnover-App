@@ -1,4 +1,4 @@
-# Turnover — Cleaning management for short-term rentals
+# AirComplex Cleaning 🧼 — Cleaning management for short-term rentals
 
 A mobile-friendly web app (in Portuguese) for managing turnover cleanings across
 the properties: the admin plans and assigns cleanings, and each cleaner sees
@@ -13,7 +13,7 @@ Stack: Next.js 16 (App Router) · Supabase (auth, Postgres, storage) · Vercel.
   what still has no cleaner assigned.
 - **Limpezas**: week calendar, filter by cleaner, assign a cleaner straight from
   the list, create/edit/cancel cleanings.
-- **Imóveis**: properties with address, access instructions, checkout/check-in
+- **Imóveis**: properties grouped by building (prédio), with a "responsável do prédio" shortcut that assigns a cleaner to the whole building; each property has address, access instructions, checkout/check-in
   times, default cleaner, Hospitable ID and iCal link. Bulk import by pasting a
   list (one property per line).
 - **Equipe**: create logins for cleaners (simple username + password), reset

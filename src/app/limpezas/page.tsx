@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, EmptyState, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { groupByBuilding } from "@/lib/buildings";
 import { listCleanings } from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
 import type { CleaningWithRelations } from "@/lib/types";
@@ -16,6 +17,9 @@ function CleaningCard({ cleaning }: { cleaning: CleaningWithRelations }) {
     <Link href={`/limpezas/${cleaning.id}`} className="block">
       <Card className="flex items-center justify-between gap-3 transition hover:ring-brand-600">
         <div className="min-w-0">
+          {cleaning.property?.building && (
+            <p className="text-xs font-semibold tracking-wide text-brand-700 uppercase">{cleaning.property.building}</p>
+          )}
           <p className="truncate text-base font-semibold">{cleaning.property?.name}</p>
           <p className="truncate text-sm text-slate-500">{cleaning.property?.address}</p>
           {timeWindow && <p className="mt-1 text-sm font-medium text-slate-700">{timeWindow}</p>}
@@ -26,6 +30,11 @@ function CleaningCard({ cleaning }: { cleaning: CleaningWithRelations }) {
   );
 }
 
+// Same building together, so the day's route goes building by building.
+function byBuilding(cleanings: CleaningWithRelations[]) {
+  return groupByBuilding(cleanings, (c) => c.property?.building).flatMap((g) => g.items);
+}
+
 export default async function MyCleaningsPage() {
   const profile = await requireUser();
   const day = today();
@@ -34,8 +43,8 @@ export default async function MyCleaningsPage() {
   ).filter((c) => c.status !== "cancelled");
 
   // Unfinished work from yesterday stays at the top until it's done.
-  const pending = cleanings.filter((c) => c.date < day && c.status !== "completed");
-  const todays = cleanings.filter((c) => c.date === day);
+  const pending = byBuilding(cleanings.filter((c) => c.date < day && c.status !== "completed"));
+  const todays = byBuilding(cleanings.filter((c) => c.date === day));
   const upcoming = cleanings.filter((c) => c.date > day);
   const upcomingDays = [...new Set(upcoming.map((c) => c.date))];
 
@@ -65,11 +74,9 @@ export default async function MyCleaningsPage() {
       {upcomingDays.map((d) => (
         <section key={d} className="mb-6 space-y-2">
           <h2 className="font-semibold capitalize text-slate-700">{formatDay(d)}</h2>
-          {upcoming
-            .filter((c) => c.date === d)
-            .map((c) => (
-              <CleaningCard key={c.id} cleaning={c} />
-            ))}
+          {byBuilding(upcoming.filter((c) => c.date === d)).map((c) => (
+            <CleaningCard key={c.id} cleaning={c} />
+          ))}
         </section>
       ))}
     </div>
