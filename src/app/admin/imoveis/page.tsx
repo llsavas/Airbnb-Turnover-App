@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, EmptyState, PageHeader, buttonClass } from "@/components/ui";
 import { listCleaners, listProperties } from "@/lib/data";
+import { importFromHospitable } from "../actions";
 
 export const metadata: Metadata = { title: "Imóveis" };
+// "Sincronizar agora" / "Importar do Hospitable" call the Hospitable API.
+export const maxDuration = 60;
 
 export default async function PropertiesPage({ searchParams }: PageProps<"/admin/imoveis">) {
   const { q, inativos } = await searchParams;
@@ -24,6 +28,9 @@ export default async function PropertiesPage({ searchParams }: PageProps<"/admin
   return (
     <>
       <PageHeader title={`Imóveis (${properties.length})`}>
+        <ActionForm action={importFromHospitable}>
+          <SubmitButton variant="secondary">Importar do Hospitable</SubmitButton>
+        </ActionForm>
         <Link href="/admin/imoveis/importar" className={buttonClass("secondary")}>
           Importar lista
         </Link>

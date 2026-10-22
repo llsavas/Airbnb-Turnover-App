@@ -5,8 +5,16 @@ import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, Field, Input, PageHeader, Select, Textarea, buttonClass } from "@/components/ui";
 import { CLEANING_SELECT, listCleaners } from "@/lib/data";
 import { formatDateTime } from "@/lib/dates";
+import { signedPhotoUrls } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
-import { SOURCE_LABELS, STATUS_LABELS, type CleaningWithRelations } from "@/lib/types";
+import {
+  ISSUE_CATEGORY_LABELS,
+  SOURCE_LABELS,
+  STATUS_LABELS,
+  type CleaningTask,
+  type CleaningWithRelations,
+  type Issue,
+} from "@/lib/types";
 import { deleteCleaning, updateCleaning } from "../actions";
 
 export const metadata: Metadata = { title: "Editar limpeza" };
@@ -19,6 +27,28 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
     listCleaners(),
   ]);
   if (!cleaning) notFound();
+
+  const [{ data: taskRows }, { data: issueRows }, { data: countRows }] = await Promise.all([
+    supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position"),
+    supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at"),
+    supabase
+      .from("property_inventory")
+      .select("quantity, par_level, item:inventory_items(name, unit, default_par)")
+      .eq("cleaning_id", id),
+  ]);
+  const tasks = (taskRows ?? []) as CleaningTask[];
+  const issues = (issueRows ?? []) as Issue[];
+  const counts = (countRows ?? []) as unknown as {
+    quantity: number;
+    par_level: number | null;
+    item: { name: string; unit: string; default_par: number };
+  }[];
+  const photoUrls = await signedPhotoUrls([
+    ...tasks.map((t) => t.photo_path),
+    ...issues.flatMap((i) => i.photo_paths),
+  ]);
+  const photoTasks = tasks.filter((t) => t.photo_path);
+  const pendingTasks = tasks.filter((t) => !t.done);
 
   return (
     <>
@@ -103,6 +133,100 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
           )}
         </aside>
       </div>
+      {(tasks.length > 0 || issues.length > 0 || counts.length > 0) && (
+        <section className="mt-8 max-w-3xl space-y-4">
+          <h2 className="text-lg font-bold">Relatório da limpeza</h2>
+
+          {tasks.length > 0 && (
+            <Card>
+              <h3 className="mb-2 font-semibold">
+                Checklist: {tasks.length - pendingTasks.length} de {tasks.length} itens
+              </h3>
+              {pendingTasks.length > 0 && (
+                <div className="mb-3 text-sm">
+                  <p className="font-medium text-amber-800">Não marcados:</p>
+                  <ul className="list-disc pl-5 text-slate-700">
+                    {pendingTasks.map((t) => (
+                      <li key={t.id}>
+                        {t.room}: {t.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {photoTasks.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {photoTasks.map((t) => {
+                    const url = photoUrls.get(t.photo_path!);
+                    return (
+                      <figure key={t.id}>
+                        {url && (
+                          <a href={url} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- signed private URL */}
+                            <img src={url} alt={t.label} className="aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200" />
+                          </a>
+                        )}
+                        <figcaption className="mt-1 text-xs text-slate-600">
+                          {t.label}
+                          {t.done_at && ` · ${formatDateTime(t.done_at)}`}
+                        </figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {issues.length > 0 && (
+            <Card className="space-y-3">
+              <h3 className="font-semibold">Problemas reportados</h3>
+              {issues.map((issue) => (
+                <div key={issue.id} className="rounded-lg bg-red-50 p-3 text-sm">
+                  <p className="font-medium text-red-800">
+                    {ISSUE_CATEGORY_LABELS[issue.category]}
+                    {issue.status === "resolved" && <span className="ml-2 text-emerald-700">(resolvido)</span>}
+                  </p>
+                  <p className="text-red-900">{issue.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {issue.photo_paths.map((path) => {
+                      const url = photoUrls.get(path);
+                      return url ? (
+                        <a key={path} href={url} target="_blank" rel="noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- signed private URL */}
+                          <img src={url} alt="" className="h-20 w-20 rounded-lg object-cover" />
+                        </a>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              ))}
+              <Link href="/admin/problemas" className="text-sm font-medium text-brand-700">
+                Ver todos os problemas →
+              </Link>
+            </Card>
+          )}
+
+          {counts.length > 0 && (
+            <Card>
+              <h3 className="mb-2 font-semibold">Estoque contado</h3>
+              <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                {counts.map((c) => {
+                  const par = c.par_level ?? c.item.default_par;
+                  return (
+                    <li key={c.item.name} className="flex justify-between">
+                      <span>{c.item.name}</span>
+                      <span className={c.quantity < par ? "font-semibold text-red-700" : "text-slate-600"}>
+                        {c.quantity} / {par} {c.item.unit}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+        </section>
+      )}
     </>
   );
 }
