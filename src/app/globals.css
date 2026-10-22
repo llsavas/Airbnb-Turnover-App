@@ -1,12 +1,60 @@
 @import "tailwindcss";
 
+/*
+ * Dark theme, in the style of Hospitable's dark mode. Instead of adding dark:
+ * variants everywhere, the palettes the app uses are redefined: slate runs
+ * from the page background (50) to the main text (900), "surface" is the card
+ * background, and the status colors use dark tints (50/200) with light text
+ * (700–900).
+ */
 @theme {
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
+  --color-surface: #1b1b1f;
+
+  --color-slate-50: #121214;
+  --color-slate-100: #26262b;
+  --color-slate-200: #2f2f35;
+  --color-slate-300: #3f3f46;
+  --color-slate-400: #71717a;
+  --color-slate-500: #a1a1aa;
+  --color-slate-600: #b5b5bd;
+  --color-slate-700: #d4d4d8;
+  --color-slate-800: #e4e4e7;
+  --color-slate-900: #fafafa;
+
+  --color-brand-50: #2a1418;
+  --color-brand-100: #3d1a20;
+  --color-brand-600: #ff5c70;
+  --color-brand-700: #f43f5e;
+  --color-brand-800: #e11d48;
+
+  --color-red-50: #2a1517;
+  --color-red-200: #5c2328;
+  --color-red-300: #7f2a31;
+  --color-red-700: #f87171;
+  --color-red-800: #fca5a5;
+  --color-red-900: #fecaca;
+
+  --color-amber-50: #2a2112;
+  --color-amber-200: #5c4518;
+  --color-amber-700: #fbbf24;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+
+  --color-emerald-50: #10261d;
+  --color-emerald-200: #1d4d39;
+  --color-emerald-700: #34d399;
+
+  --color-sky-50: #10202b;
+  --color-sky-200: #1d4257;
+  --color-sky-700: #7dd3fc;
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  /* Native date/time pickers, selects and scrollbars in dark too. */
+  color-scheme: dark;
+  accent-color: var(--color-brand-700);
 }
 
 body {

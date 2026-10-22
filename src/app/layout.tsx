@@ -7,11 +7,11 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 export const metadata: Metadata = {
   title: { default: "AirComplex Cleaning 🧼", template: "%s · AirComplex Cleaning" },
   description: "Gestão de limpezas dos imóveis",
-  appleWebApp: { capable: true, title: "AirComplex", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "AirComplex", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f766e",
+  themeColor: "#121214",
   width: "device-width",
   initialScale: 1,
 };

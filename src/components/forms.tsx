@@ -95,7 +95,7 @@ export function AutoSubmitSelect({
       disabled={pending}
       aria-label={ariaLabel}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="w-full rounded-lg border-0 bg-white px-2 py-1.5 text-sm ring-1 ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none disabled:opacity-60 sm:w-48"
+      className="w-full rounded-lg border-0 bg-surface px-2 py-1.5 text-sm ring-1 ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none disabled:opacity-60 sm:w-48"
     >
       <option value="">{placeholder}</option>
       {options.map((o) => (

@@ -8,8 +8,8 @@ function cx(...classes: (string | false | null | undefined)[]) {
 
 const buttonVariants = {
   primary: "bg-brand-700 text-white hover:bg-brand-800",
-  secondary: "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
-  danger: "bg-white text-red-700 ring-1 ring-red-300 hover:bg-red-50",
+  secondary: "bg-surface text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
+  danger: "bg-surface text-red-700 ring-1 ring-red-300 hover:bg-red-50",
   ghost: "text-slate-700 hover:bg-slate-100",
 };
 
@@ -24,7 +24,7 @@ export function buttonClass(variant: keyof typeof buttonVariants = "primary", ex
 export function Card({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={cx("rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5", className)}
+      className={cx("rounded-xl bg-surface p-4 shadow-sm ring-1 ring-slate-200 sm:p-5", className)}
       {...props}
     />
   );
@@ -58,7 +58,7 @@ export function Field({
 }
 
 const inputClass =
-  "block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-base text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 focus:outline-none sm:text-sm";
+  "block w-full rounded-lg border-0 bg-surface px-3 py-2.5 text-base text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 focus:outline-none sm:text-sm";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cx(inputClass, className)} {...props} />;

@@ -56,7 +56,7 @@ function TaskRow({
           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition ${
             task.done
               ? "border-emerald-600 bg-emerald-600 text-white"
-              : "border-slate-300 bg-white disabled:bg-slate-100"
+              : "border-slate-300 bg-surface disabled:bg-slate-100"
           }`}
         >
           {task.done && (
@@ -174,7 +174,7 @@ export function Checklist({
           const roomTasks = optimisticTasks.filter((t) => t.room === room);
           const roomDone = roomTasks.every((t) => t.done);
           return (
-            <section key={room} className="rounded-xl bg-white px-4 shadow-sm ring-1 ring-slate-200">
+            <section key={room} className="rounded-xl bg-surface px-4 shadow-sm ring-1 ring-slate-200">
               <h3 className="flex items-center justify-between border-b border-slate-100 py-3 font-semibold">
                 {room}
                 {roomDone && <span className="text-xs font-medium text-emerald-700">✓ Pronto</span>}

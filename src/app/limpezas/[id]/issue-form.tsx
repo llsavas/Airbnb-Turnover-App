@@ -30,7 +30,7 @@ export function IssueForm({ cleaningId }: { cleaningId: string }) {
 
   return (
     <form
-      className="space-y-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-red-200"
+      className="space-y-4 rounded-xl bg-surface p-4 shadow-sm ring-1 ring-red-200"
       onSubmit={(e) => {
         e.preventDefault();
         const form = e.currentTarget;

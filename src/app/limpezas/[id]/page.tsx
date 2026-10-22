@@ -143,14 +143,16 @@ export default async function CleaningDetailPage({ params }: PageProps<"/limpeza
                   <span className="text-[15px]">
                     {item.name} <span className="text-xs text-slate-500">(mín. {par} {item.unit})</span>
                   </span>
-                  <Input
-                    name={`item:${item.id}`}
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    defaultValue={last?.quantity ?? ""}
-                    className="w-20 text-center"
-                  />
+                  <div className="w-20 shrink-0">
+                    <Input
+                      name={`item:${item.id}`}
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      defaultValue={last?.quantity ?? ""}
+                      className="text-center"
+                    />
+                  </div>
                 </label>
               );
             })}

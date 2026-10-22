@@ -30,13 +30,13 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
       <PageHeader title="Problemas">
         <Link
           href="/admin/problemas"
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${!resolved ? "bg-slate-900 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${!resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
         >
           Abertos
         </Link>
         <Link
           href="/admin/problemas?status=resolvidos"
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${resolved ? "bg-slate-900 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
         >
           Resolvidos
         </Link>
