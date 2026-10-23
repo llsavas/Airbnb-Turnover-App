@@ -186,3 +186,13 @@ export async function listCleaningTeamIssues(): Promise<IssueWithRelations[]> {
   if (error) throw error;
   return data as IssueWithRelations[];
 }
+
+export async function countOpenIssues(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("issues")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "open");
+  if (error) throw error;
+  return count ?? 0;
+}

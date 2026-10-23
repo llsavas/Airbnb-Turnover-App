@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Card, EmptyState } from "@/components/ui";
+import { IssueBuildingGroup } from "@/components/issue-groups";
 import { TeamIssue } from "@/components/team-issue";
+import { EmptyState } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { groupByBuilding, inBuildings } from "@/lib/buildings";
 import { listCleaningTeamIssues } from "@/lib/data";
@@ -17,18 +18,24 @@ export default async function TeamIssuesPage() {
   const photoUrls = await signedPhotoUrls(issues.flatMap((i) => i.photo_paths));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-xl font-bold">Problemas para a limpeza</h1>
+    <div className="mx-auto max-w-3xl space-y-3">
+      <h1 className="mb-2 text-xl font-bold">
+        Problemas <span className="text-slate-500 tabular-nums">({issues.length})</span>
+      </h1>
       {issues.length === 0 ? (
         <EmptyState>Nenhum problema pendente. 🎉</EmptyState>
       ) : (
         groupByBuilding(issues, (i) => i.property?.building).map((group) => (
-          <Card key={group.building} className="space-y-3">
-            <h2 className="font-semibold">{group.building}</h2>
+          <IssueBuildingGroup
+            key={group.building}
+            building={group.building}
+            count={group.items.length}
+            urgent={group.items.filter((i) => i.urgency === "urgent").length}
+          >
             {group.items.map((issue) => (
               <TeamIssue key={issue.id} issue={issue} photoUrls={photoUrls} />
             ))}
-          </Card>
+          </IssueBuildingGroup>
         ))
       )}
     </div>

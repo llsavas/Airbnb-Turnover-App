@@ -1,40 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BeforeAfter } from "@/components/before-after";
-import { EditableIssue } from "@/components/editable-issue";
-import { SubmitButton } from "@/components/forms";
 import { DeleteIssue } from "@/components/delete-issue";
+import { SubmitButton } from "@/components/forms";
+import { IssueCard } from "@/components/issue-card";
+import { IssueBuildingGroup } from "@/components/issue-groups";
 import { ResolveIssue } from "@/components/resolve-issue";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
-import { aptLabel } from "@/lib/buildings";
-import { listIssues, listProperties } from "@/lib/data";
+import { EmptyState } from "@/components/ui";
+import { aptShort, groupByBuilding } from "@/lib/buildings";
+import { countOpenIssues, listIssues, listProperties } from "@/lib/data";
 import { formatDateTime } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
-import { ISSUE_CATEGORY_LABELS, ISSUE_TEAM_LABELS, ISSUE_URGENCY_LABELS, type IssueUrgency } from "@/lib/types";
+import { ISSUE_CATEGORY_LABELS, type IssueUrgency } from "@/lib/types";
 import { reopenIssue } from "./actions";
 import { IssueComposer } from "./issue-composer";
 
 export const metadata: Metadata = { title: "Problemas" };
-
-const urgencyStyles: Record<IssueUrgency, string> = {
-  urgent: "bg-red-50 text-red-700 ring-red-200",
-  normal: "bg-amber-50 text-amber-800 ring-amber-200",
-  low: "bg-slate-100 text-slate-600 ring-slate-200",
-};
 
 const URGENCY_ORDER: IssueUrgency[] = ["urgent", "normal", "low"];
 
 export default async function IssuesPage({ searchParams }: PageProps<"/admin/problemas">) {
   const { status } = await searchParams;
   const resolved = status === "resolvidos";
-  const [issues, apartments] = await Promise.all([listIssues(resolved ? "resolved" : "open"), listProperties()]);
+  const [issues, apartments, openCount] = await Promise.all([
+    listIssues(resolved ? "resolved" : "open"),
+    listProperties(),
+    resolved ? countOpenIssues() : Promise.resolve(null),
+  ]);
   if (!resolved) issues.sort((a, b) => URGENCY_ORDER.indexOf(a.urgency) - URGENCY_ORDER.indexOf(b.urgency));
+  const pending = openCount ?? issues.length;
   const photoUrls = await signedPhotoUrls(issues.flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]));
-  const urls = (paths: string[]) => paths.flatMap((p) => (photoUrls.get(p) ? [photoUrls.get(p)!] : []));
+  const photos = (paths: string[]) => paths.map((path) => ({ path, url: photoUrls.get(path) ?? "" }));
+  const urls = (paths: string[]) => paths.flatMap((p) => photoUrls.get(p) ?? []);
 
   return (
     <>
-      <PageHeader title="Problemas" />
+      <h1 className="mb-5 text-xl font-bold text-slate-900 sm:text-2xl">
+        Problemas <span className="text-slate-500 tabular-nums">({pending})</span>
+      </h1>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start">
         <nav className="flex shrink-0 gap-2">
           <Link
@@ -57,72 +60,58 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
         <EmptyState>{resolved ? "Nenhum problema resolvido ainda." : "Nenhum problema aberto. 🎉"}</EmptyState>
       ) : (
         <div className="space-y-3">
-          {issues.map((issue) => (
-            <Card key={issue.id} className="space-y-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">{aptLabel(issue.property)}</p>
-                  <p className="text-sm text-slate-500">
-                    {issue.team
-                      ? `${issue.team === "maintenance" ? "🔧" : "🧽"} ${ISSUE_TEAM_LABELS[issue.team]}`
-                      : ISSUE_CATEGORY_LABELS[issue.category]}{" "}
-                    · {issue.reporter?.full_name || "—"} · {formatDateTime(issue.created_at)}
-                  </p>
-                </div>
-                {resolved && (
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${urgencyStyles[issue.urgency]}`}
-                  >
-                    {ISSUE_URGENCY_LABELS[issue.urgency]}
-                  </span>
-                )}
-              </div>
-              {resolved ? (
-                <>
-                  <p className="whitespace-pre-line">{issue.description}</p>
-                  <BeforeAfter before={urls(issue.photo_paths)} after={urls(issue.resolution_photo_paths)} />
-                </>
-              ) : (
-                <EditableIssue
+          {groupByBuilding(issues, (i) => i.property?.building).map((group) => (
+            <IssueBuildingGroup
+              key={group.building}
+              building={group.building}
+              count={group.items.length}
+              urgent={resolved ? 0 : group.items.filter((i) => i.urgency === "urgent").length}
+            >
+              {group.items.map((issue) => (
+                <IssueCard
+                  key={issue.id}
                   issueId={issue.id}
+                  title={aptShort(issue.property)}
+                  createdAt={formatDateTime(issue.created_at)}
                   description={issue.description}
                   urgency={issue.urgency}
                   team={issue.team}
-                  photos={issue.photo_paths.map((path) => ({ path, url: photoUrls.get(path) ?? "" }))}
+                  typeLabel={ISSUE_CATEGORY_LABELS[issue.category]}
+                  photos={photos(resolved && issue.resolution_photo_paths.length ? issue.resolution_photo_paths : issue.photo_paths)}
                   canChangeTeam
-                />
-              )}
-              <div className="flex flex-wrap gap-4 text-sm font-medium">
-                {issue.cleaning_id && (
-                  <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-brand-700">
-                    Ver limpeza →
-                  </Link>
-                )}
-                {!resolved && (
-                  <Link href={`/admin/manutencoes?problema=${issue.id}`} className="text-brand-700">
-                    Agendar manutenção →
-                  </Link>
-                )}
-              </div>
-              {resolved ? (
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm">
-                  <p className="text-emerald-700">
-                    Resolvido {issue.resolved_at && `em ${formatDateTime(issue.resolved_at)}`}
-                    {issue.resolution && `: ${issue.resolution}`}
-                  </p>
-                  <form action={reopenIssue.bind(null, issue.id)}>
-                    <SubmitButton variant="secondary">Reabrir</SubmitButton>
-                  </form>
-                </div>
-              ) : (
-                <div className="border-t border-slate-100 pt-3">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
-                    <DeleteIssue issueId={issue.id} />
+                  readOnly={resolved}
+                  note={
+                    resolved &&
+                    `✓ Resolvido${issue.resolved_at ? ` em ${formatDateTime(issue.resolved_at)}` : ""}${issue.resolution ? `: ${issue.resolution}` : ""}`
+                  }
+                >
+                  <p className="text-xs text-slate-500">Enviado por {issue.reporter?.full_name || "—"}</p>
+                  {resolved && <BeforeAfter size="h-16 w-16" before={urls(issue.photo_paths)} after={urls(issue.resolution_photo_paths)} />}
+                  <div className="flex flex-wrap gap-4 text-sm font-medium">
+                    {issue.cleaning_id && (
+                      <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-brand-700">
+                        Ver limpeza →
+                      </Link>
+                    )}
+                    {!resolved && (
+                      <Link href={`/admin/manutencoes?problema=${issue.id}`} className="text-brand-700">
+                        Agendar manutenção →
+                      </Link>
+                    )}
                   </div>
-                </div>
-              )}
-            </Card>
+                  {resolved ? (
+                    <form action={reopenIssue.bind(null, issue.id)}>
+                      <SubmitButton variant="secondary">Reabrir</SubmitButton>
+                    </form>
+                  ) : (
+                    <div className="flex flex-wrap items-start gap-2">
+                      <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+                      <DeleteIssue issueId={issue.id} />
+                    </div>
+                  )}
+                </IssueCard>
+              ))}
+            </IssueBuildingGroup>
           ))}
         </div>
       )}

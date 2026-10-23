@@ -36,3 +36,11 @@ export function aptLabel(property: { name: string; building: string | null } | n
 export function inBuildings(selected: string[], building: string | null | undefined): boolean {
   return selected.length === 0 || selected.includes(building || NO_BUILDING);
 }
+
+// "LBY · 508": compact, for cards.
+export function aptShort(property: { name: string; building: string | null } | null | undefined): string {
+  if (!property) return "Imóvel removido";
+  const number = property.name.match(/^\d+/)?.[0];
+  if (!number) return property.name;
+  return property.building ? `${property.building} · ${number}` : number;
+}
