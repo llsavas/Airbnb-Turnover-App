@@ -31,11 +31,11 @@ export function DeleteIssue({ issueId }: { issueId: string }) {
             }
           });
         }}
-        className={`rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
-          armed ? "bg-red-700 text-white" : "text-red-700 ring-1 ring-red-300 hover:bg-red-50"
+        className={`rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60 ${
+          armed ? "ring-2 ring-red-300" : ""
         }`}
       >
-        {pending ? "Deletando…" : armed ? "Toque de novo para deletar" : "🗑 Deletar"}
+        {pending ? "Deletando…" : armed ? "Toque de novo para deletar" : "Deletar"}
       </button>
       {error && <span className="text-sm text-red-700">{error}</span>}
     </div>
