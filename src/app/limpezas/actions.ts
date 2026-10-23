@@ -79,7 +79,9 @@ export async function uploadTaskPhoto(
   return null;
 }
 
-export async function saveInventory(cleaningId: string, _: FormState, formData: FormData): Promise<FormState> {
+// Stock of a building's supply room, counted from the building block of the
+// Diário. Empty fields keep the previous count.
+export async function saveBuildingStock(building: string, _: FormState, formData: FormData): Promise<FormState> {
   try {
     await requireUser();
     const counts: Record<string, number> = {};
@@ -92,13 +94,13 @@ export async function saveInventory(cleaningId: string, _: FormState, formData: 
     if (Object.keys(counts).length === 0) throw new FormError("Preencha pelo menos um item.");
 
     const supabase = await createClient();
-    const { error } = await supabase.rpc("record_inventory", { cleaning_id: cleaningId, counts });
+    const { error } = await supabase.rpc("record_building_inventory", { p_building: building, counts });
     if (error) return { error: error.message };
   } catch (error) {
     return toFormState(error);
   }
-  revalidateCleaning(cleaningId);
-  revalidatePath("/admin/estoque");
+  revalidatePath("/limpezas", "layout");
+  revalidatePath("/admin", "layout");
   return { success: "Estoque salvo. Obrigado!" };
 }
 

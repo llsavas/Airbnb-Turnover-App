@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Card, FlameIcon, Input, StatusBadge } from "@/components/ui";
+import { Card, FlameIcon, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime, formatDayShort } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
@@ -11,14 +11,13 @@ import {
   ISSUE_CATEGORY_LABELS,
   type CleaningTask,
   type CleaningWithRelations,
-  type InventoryItem,
   type Issue,
   type Property,
   type PropertyLinen,
   type ReferencePhoto,
 } from "@/lib/types";
 import { aptTitle, releaseText, scheduleLine } from "../../admin/_painel/daily-card";
-import { completeCleaning, saveInventory, startCleaning } from "../actions";
+import { completeCleaning, startCleaning } from "../actions";
 import { Checklist } from "./checklist";
 import { IssueSheet } from "./issue-sheet";
 
@@ -47,21 +46,12 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
 
   const [
     { data: tasks },
-    { data: items },
-    { data: stock },
     { data: issues },
     { data: standard },
     { data: linens },
     { data: refPhotos },
-    { count: buildingApartments },
   ] = await Promise.all([
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
-    supabase.from("inventory_items").select("*").eq("active", true).order("position").overrideTypes<InventoryItem[], { merge: false }>(),
-    supabase
-      .from("building_inventory")
-      .select("item_id, quantity, par_level")
-      .eq("building", cleaning.property?.building ?? "")
-      .overrideTypes<{ item_id: string; quantity: number | null; par_level: number | null }[], { merge: false }>(),
     supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
     supabase.from("property_standards").select("notes").eq("property_id", cleaning.property_id).maybeSingle(),
     supabase
@@ -76,18 +66,12 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       .eq("property_id", cleaning.property_id)
       .order("position")
       .overrideTypes<ReferencePhoto[], { merge: false }>(),
-    supabase
-      .from("properties")
-      .select("*", { count: "exact", head: true })
-      .eq("building", cleaning.property?.building ?? "")
-      .eq("active", true),
   ]);
   const photoUrls = await signedPhotoUrls([
     ...(tasks ?? []).map((t) => t.photo_path),
     ...(refPhotos ?? []).map((p) => p.path),
   ]);
   const hasStandard = !!standard?.notes || !!linens?.length || !!refPhotos?.length;
-  const lastCount = new Map((stock ?? []).map((s) => [s.item_id, s]));
   const inProgress = cleaning.status === "in_progress";
   const missing = (tasks ?? []).filter((t) => !t.done).length;
   const property = cleaning.property;
@@ -188,42 +172,6 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
           editable
           tasks={tasks.map((t) => ({ ...t, photo_url: t.photo_path ? (photoUrls.get(t.photo_path) ?? null) : null }))}
         />
-      )}
-
-      {inProgress && items && items.length > 0 && property?.building && (
-        <details className="rounded-xl bg-surface shadow-sm ring-1 ring-slate-200">
-          <summary className="cursor-pointer px-4 py-3 font-semibold">Estoque do prédio {property.building}</summary>
-          <ActionForm action={saveInventory.bind(null, id)} className="space-y-2 px-4 pb-4">
-            <p className="text-sm text-slate-500">
-              Quanto tem no depósito do prédio agora (mínimo entre parênteses). Não precisa contar a cada limpeza:
-              só quando passar por lá.
-            </p>
-            {items.map((item) => {
-              const last = lastCount.get(item.id);
-              const par = last?.par_level ?? item.default_par * (buildingApartments ?? 1);
-              return (
-                <label key={item.id} className="flex items-center justify-between gap-3">
-                  <span className="text-[15px]">
-                    {item.name} <span className="text-xs text-slate-500">({par})</span>
-                  </span>
-                  <div className="w-20 shrink-0">
-                    <Input
-                      name={`item:${item.id}`}
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      defaultValue={last?.quantity ?? ""}
-                      className="text-center"
-                    />
-                  </div>
-                </label>
-              );
-            })}
-            <SubmitButton variant="secondary" className="mt-2 w-full">
-              Salvar estoque
-            </SubmitButton>
-          </ActionForm>
-        </details>
       )}
 
       {issues && issues.length > 0 && (

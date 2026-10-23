@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Card, EmptyState, FlameIcon } from "@/components/ui";
 import { aptLabel, groupByBuilding, inBuildings } from "@/lib/buildings";
-import { countPhotos, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
+import { countPhotos, listBuildingStock, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
 import { BuildingAccordion, UrgentBadge } from "./building-accordion";
+import { BuildingStockForm } from "./building-stock";
 import { DailyCleaningCard, TeamCleaningCard } from "./daily-card";
 
 // Diário tab, shared by the admin panel and the team app ("team" mode shows
@@ -19,11 +20,14 @@ export async function DailyView({
   link: (params: Record<string, string>) => string;
   mode: "admin" | "team";
 }) {
-  const [allCleanings, cleaners, allMaintenances] = await Promise.all([
+  const [allCleanings, cleaners, allMaintenances, stock] = await Promise.all([
     listCleanings({ from: date, to: date }),
     mode === "admin" ? listCleaners() : Promise.resolve([]),
     mode === "admin" ? listMaintenances({ from: date, to: date, status: "scheduled" }) : Promise.resolve([]),
+    // The team counts each building's stock from its block.
+    mode === "team" ? listBuildingStock() : Promise.resolve([]),
   ]);
+  const stockOf = new Map(stock.map((s) => [s.building, s]));
   const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuildings(buildings, c.property?.building));
   const maintenances = allMaintenances.filter((m) => inBuildings(buildings, m.property?.building));
   const photos = await countPhotos(cleanings.map((c) => c.id));
@@ -81,6 +85,9 @@ export async function DailyView({
                 badge={<UrgentBadge count={items.filter(sameDay).length} singular="entrada" plural="entradas" />}
               >
                 <div className="space-y-3 p-3">
+                  {mode === "team" && stockOf.get(group.building) && (
+                    <BuildingStockForm stock={stockOf.get(group.building)!} />
+                  )}
                   {items.map((c) =>
                     mode === "admin" ? (
                       <DailyCleaningCard key={c.id} cleaning={c} cleaners={cleaners} photos={photos.get(c.id) ?? 0} />
