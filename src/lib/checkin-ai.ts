@@ -19,11 +19,11 @@ const detailsSchema = z.object({
           .describe("CPF no formato 000.000.000-00, ou null se não foi informado"),
       }),
     )
-    .describe("Todas as pessoas que vão se hospedar e que foram citadas com nome"),
+    .describe("Todas as pessoas que vão se hospedar (até 4), na ordem em que aparecem, cada uma com seu CPF"),
   arrival_time: z
     .string()
     .nullable()
-    .describe('Horário de chegada informado pelo hóspede, ex.: "15h", "por volta das 22h"'),
+    .describe('Horário de chegada informado pelo hóspede, no formato "15h" ou "15h30", ou null'),
   vehicle_plate: z.string().nullable().describe("Placa do carro, em maiúsculas, ou null"),
   notes: z
     .string()
@@ -39,22 +39,64 @@ export type GuestDetails = {
 };
 
 const CPF = /\b(\d{3})\.?(\d{3})\.?(\d{3})-?(\d{2})\b/g;
+const HAS_CPF = new RegExp(CPF.source);
 // Brazilian plates, old (ABC-1234) and Mercosul (ABC1D23).
 const PLATE = /\b([A-Z]{3})-?(\d[A-Z0-9]\d{2})\b/;
 
-// Fallback when the AI can't be reached: CPFs and plate by pattern only.
+// "chegamos às 15h", "chegada por volta das 22:30"
+const ARRIVAL = /cheg\w*[^\n\d]{0,30}?\b([01]?\d|2[0-3])(?:\s*[:h]\s*([0-5]\d))?\s*(h|hs|horas)?\b/i;
+// Words that show a line is a sentence, not someone's name.
+const NOT_A_NAME =
+  /\b(segue|seguem|dados|cpf|rg|nome|olá|ola|oi|bom|boa|abaixo|obrigad\w*|hóspede\w*|hospede\w*|reserva|check|placa|carro)\b/i;
+
+// The guest's name usually sits right before the CPF ("Ana Souza 123.456.789-00",
+// "Ana Souza - CPF: …") or on the line above it.
+function nameNear(lines: string[], lineIndex: number, before: string): string {
+  const clean = (s: string) =>
+    s
+      .replace(/\d/g, " ")
+      .replace(/\b(cpf|nome|rg)\b/gi, " ")
+      .replace(/[:;|,\-–—•*()]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const isName = (s: string) =>
+    /^[\p{L}' ]+$/u.test(s) && s.split(" ").length >= 2 && s.split(" ").length <= 7 && !NOT_A_NAME.test(s);
+
+  const sameLine = clean(before);
+  if (isName(sameLine)) return sameLine;
+  for (let i = lineIndex - 1; i >= Math.max(0, lineIndex - 2); i--) {
+    if (HAS_CPF.test(lines[i])) break; // that line belongs to the previous guest
+    const candidate = clean(lines[i]);
+    if (isName(candidate)) return candidate;
+  }
+  return "";
+}
+
+// Fallback when the AI can't be reached: guests (name + CPF), arrival time and
+// plate by pattern.
 export function readGuestDetailsByPattern(
   messages: { body: string | null; sender_type: string }[],
 ): GuestDetails {
-  const text = messages
-    .filter((m) => m.sender_type === "guest" && m.body)
-    .map((m) => m.body!)
-    .join("\n");
-  const cpfs = [...new Set([...text.matchAll(CPF)].map((m) => `${m[1]}.${m[2]}.${m[3]}-${m[4]}`))];
+  const bodies = messages.filter((m) => m.sender_type === "guest" && m.body).map((m) => m.body!);
+  const guests = new Map<string, string>();
+  for (const body of bodies) {
+    const lines = body.split(/\r?\n/);
+    lines.forEach((line, i) => {
+      let previousEnd = 0;
+      for (const m of line.matchAll(CPF)) {
+        const cpf = `${m[1]}.${m[2]}.${m[3]}-${m[4]}`;
+        const name = nameNear(lines, i, line.slice(previousEnd, m.index));
+        if (!guests.has(cpf) || (name && !guests.get(cpf))) guests.set(cpf, name);
+        previousEnd = m.index + m[0].length;
+      }
+    });
+  }
+  const text = bodies.join("\n");
   const plate = text.toUpperCase().match(PLATE);
+  const arrival = text.match(ARRIVAL);
   return {
-    guests: cpfs.map((cpf) => ({ name: "", cpf })),
-    arrival_time: null,
+    guests: [...guests].map(([cpf, name]) => ({ name, cpf })),
+    arrival_time: arrival ? `${Number(arrival[1])}h${arrival[2] ?? ""}` : null,
     vehicle_plate: plate ? `${plate[1]}${plate[2]}` : null,
     ai_notes: null,
   };
@@ -81,6 +123,8 @@ export async function readGuestDetails(
     system:
       "Você extrai dados de check-in de conversas entre anfitrião e hóspede de um aluguel por temporada. " +
       "Use apenas o que o HÓSPEDE informou; nunca invente nem complete dados. " +
+      "Uma reserva pode ter até 4 hóspedes: liste TODOS que tiverem nome ou CPF, inclusive o titular, " +
+      "ligando cada CPF ao nome escrito junto dele. " +
       "Se uma informação não aparece, use null (ou lista vazia para hóspedes).",
     prompt: `Reserva em nome de: ${reservationName ?? "desconhecido"}\n\nConversa:\n${transcript}`,
   });

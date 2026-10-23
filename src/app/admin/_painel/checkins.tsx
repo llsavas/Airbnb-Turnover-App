@@ -9,30 +9,38 @@ import { BuildingAccordion } from "./building-accordion";
 
 const DAYS_AHEAD = 3;
 
+// "15:00" → "15h", "15:30" → "15h30"
+function hour(time: string) {
+  const [h, m] = formatTime(time).split(":");
+  return `${Number(h)}h${m === "00" ? "" : m}`;
+}
+
+// One line per guest ("Nome | CPF: 000.000.000-00"), then arrival and plate:
+// the format the front desk receives.
 function Notes({ checkin }: { checkin: CheckinWithProperty }) {
-  const named = checkin.guests.filter((g) => g.name);
-  // CPFs found without the AI have no name attached.
-  const unnamedCpfs = checkin.guests.filter((g) => !g.name && g.cpf).map((g) => g.cpf);
-  const pending = <span className="text-amber-700">CPF: pendente no chat</span>;
+  const pending = <span className="text-amber-700">pendente no chat</span>;
+  const guests = checkin.guests.length
+    ? checkin.guests
+    : [{ name: checkin.guest_name ?? "", cpf: null }];
+  const missing = Math.max(0, (checkin.guest_count ?? 0) - checkin.guests.length);
   return (
     <div className="space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
-      {named.map((g, i) => (
+      {guests.map((g, i) => (
         <p key={i}>
-          {g.name} | {g.cpf ? <>CPF: {g.cpf}</> : pending}
+          {g.name || <span className="text-slate-500">(nome não identificado)</span>} | CPF:{" "}
+          {g.cpf ?? pending}
         </p>
       ))}
-      {named.length === 0 && (
-        <p>
-          {checkin.guest_name ?? "Hóspede"}
-          {unnamedCpfs.length === 0 && <> | {pending}</>}
+      {missing > 0 && checkin.guests.length > 0 && (
+        <p className="text-amber-700">
+          {missing === 1 ? "Falta 1 hóspede" : `Faltam ${missing} hóspedes`} (nome e CPF)
         </p>
       )}
-      {unnamedCpfs.length > 0 && <p>CPF: {unnamedCpfs.join(", ")}</p>}
       <p>
         Chegada:{" "}
         {checkin.arrival_time ?? (
           <span className="text-slate-500">
-            não informada{checkin.checkin_time && ` (check-in a partir das ${formatTime(checkin.checkin_time)})`}
+            não informada{checkin.checkin_time && ` (check-in a partir das ${hour(checkin.checkin_time)})`}
           </span>
         )}
       </p>
