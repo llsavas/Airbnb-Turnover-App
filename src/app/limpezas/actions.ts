@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { FormError, requiredText, text, toFormState, type FormState } from "@/lib/form";
-import { uploadCleaningPhoto, uploadIssuePhoto } from "@/lib/photos";
+import { signedPhotoUrls, uploadCleaningPhoto, uploadIssuePhoto } from "@/lib/photos";
 import {
   ISSUE_CATEGORY_LABELS,
   ISSUE_URGENCY_LABELS,
@@ -177,4 +177,49 @@ export async function resolveIssueWithPhotos(
   revalidatePath("/limpezas", "layout");
   revalidatePath("/admin", "layout");
   return { success: "Problema resolvido." };
+}
+
+export type IssuePhoto = { path: string; url: string };
+
+// Edits an open problem from its card: description, urgency, who fixes it
+// (admin only) and photos. Only the fields sent change.
+export async function updateIssue(
+  issueId: string,
+  formData: FormData,
+): Promise<{ error?: string; photos?: IssuePhoto[] }> {
+  try {
+    await requireUser();
+    const supabase = await createClient();
+    const { data: issue } = await supabase.from("issues").select("property_id, photo_paths").eq("id", issueId).single();
+    if (!issue) throw new FormError("Problema não encontrado.");
+
+    let photoPaths: string[] | null = null;
+    const keep = formData.get("keep_photos");
+    const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+    if (typeof keep === "string" || files.length > 0) {
+      const kept = typeof keep === "string" ? (JSON.parse(keep) as string[]) : issue.photo_paths;
+      const added = await Promise.all(files.map((f) => uploadIssuePhoto(issue.property_id, f)));
+      photoPaths = [...kept.filter((p: string) => issue.photo_paths.includes(p)), ...added];
+      if (photoPaths.length > MAX_ISSUE_PHOTOS) throw new FormError(`No máximo ${MAX_ISSUE_PHOTOS} fotos.`);
+    }
+
+    const urgency = text(formData, "urgency");
+    const team = text(formData, "team");
+    const { error } = await supabase.rpc("update_issue", {
+      issue_id: issueId,
+      new_description: formData.has("description") ? requiredText(formData, "description", "Problema") : null,
+      new_urgency: urgency && urgency in ISSUE_URGENCY_LABELS ? urgency : null,
+      new_team: team,
+      new_photo_paths: photoPaths,
+    });
+    if (error) return { error: error.message };
+
+    revalidatePath("/limpezas", "layout");
+    revalidatePath("/admin", "layout");
+    if (!photoPaths) return {};
+    const urls = await signedPhotoUrls(photoPaths);
+    return { photos: photoPaths.map((path) => ({ path, url: urls.get(path) ?? "" })) };
+  } catch (error) {
+    return toFormState(error) ?? {};
+  }
 }

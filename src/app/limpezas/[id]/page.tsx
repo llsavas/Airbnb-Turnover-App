@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BeforeAfter } from "@/components/before-after";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { ResolveIssue } from "@/components/resolve-issue";
 import { TeamIssue } from "@/components/team-issue";
 import { Card, FlameIcon, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
@@ -183,7 +182,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
         <Card className="space-y-3">
           <h2 className="font-semibold">Para resolver neste apartamento</h2>
           {apartmentTodos.map((issue) => (
-            <TeamIssue key={issue.id} issue={issue} photoUrls={photoUrls} showApartment={false} />
+            <TeamIssue key={issue.id} issue={issue} photoUrls={photoUrls} title="Para a limpeza resolver" />
           ))}
         </Card>
       )}
@@ -191,19 +190,12 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       {issues && issues.length > 0 && (
         <Card className="space-y-3">
           <h2 className="font-semibold">Problemas desta limpeza</h2>
-          {issues.map((issue) => {
-            const resolved = issue.status === "resolved";
-            return (
-              <div
-                key={issue.id}
-                className={`space-y-2 rounded-lg px-3 py-2 text-sm ring-1 ${
-                  resolved ? "bg-emerald-50 ring-emerald-200" : "bg-red-50 ring-red-200"
-                }`}
-              >
-                <p className={`font-medium ${resolved ? "text-emerald-700" : "text-red-800"}`}>
-                  {resolved ? "✓" : "⚠"} {ISSUE_CATEGORY_LABELS[issue.category]}
-                  {resolved && " · resolvido"}
-                </p>
+          {issues.map((issue) =>
+            issue.status === "open" ? (
+              <TeamIssue key={issue.id} issue={issue} photoUrls={photoUrls} title={ISSUE_CATEGORY_LABELS[issue.category]} />
+            ) : (
+              <div key={issue.id} className="space-y-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm ring-1 ring-emerald-200">
+                <p className="font-medium text-emerald-700">✓ {ISSUE_CATEGORY_LABELS[issue.category]} · resolvido</p>
                 <p>{issue.description}</p>
                 {issue.resolution && <p className="text-emerald-700">{issue.resolution}</p>}
                 <BeforeAfter
@@ -211,10 +203,9 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
                   before={issue.photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
                   after={issue.resolution_photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
                 />
-                {!resolved && <ResolveIssue issueId={issue.id} cleaningId={id} />}
               </div>
-            );
-          })}
+            ),
+          )}
         </Card>
       )}
 

@@ -1,28 +1,34 @@
-import { BeforeAfter } from "@/components/before-after";
+import { EditableIssue } from "@/components/editable-issue";
 import { ResolveIssue } from "@/components/resolve-issue";
 import { aptLabel } from "@/lib/buildings";
-import type { IssueWithRelations } from "@/lib/types";
+import type { Issue, IssueWithRelations } from "@/lib/types";
 
-// A problem the admin addressed to the cleaning team: what to do, the photo
-// and "Resolver" with an optional "after" photo.
+// An open problem for the team: edited right on the card (text, urgency,
+// photos) and "Resolver" with an optional "after" photo.
 export function TeamIssue({
   issue,
   photoUrls,
-  showApartment = true,
+  title,
 }: {
-  issue: IssueWithRelations;
+  issue: Issue | IssueWithRelations;
   photoUrls: Map<string, string>;
-  showApartment?: boolean;
+  // Defaults to the apartment.
+  title?: string;
 }) {
   const urgent = issue.urgency === "urgent";
   return (
     <div className={`space-y-2 rounded-lg px-3 py-2 text-sm ring-1 ${urgent ? "bg-red-50 ring-red-200" : "bg-amber-50 ring-amber-200"}`}>
       <p className={`font-medium ${urgent ? "text-red-800" : "text-amber-800"}`}>
-        🧽 {showApartment ? aptLabel(issue.property) : "Para a limpeza resolver"}
-        {urgent && " · urgente"}
+        {issue.team === "cleaning" ? "🧽" : "⚠"} {title ?? ("property" in issue ? aptLabel(issue.property) : "")}
       </p>
-      <p>{issue.description}</p>
-      <BeforeAfter size="h-16 w-16" before={issue.photo_paths.flatMap((p) => photoUrls.get(p) ?? [])} after={[]} />
+      <EditableIssue
+        issueId={issue.id}
+        description={issue.description}
+        urgency={issue.urgency}
+        team={issue.team}
+        photos={issue.photo_paths.map((path) => ({ path, url: photoUrls.get(path) ?? "" }))}
+        canChangeTeam={false}
+      />
       <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
     </div>
   );

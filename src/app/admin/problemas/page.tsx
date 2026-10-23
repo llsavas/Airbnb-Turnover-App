@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BeforeAfter } from "@/components/before-after";
+import { EditableIssue } from "@/components/editable-issue";
 import { SubmitButton } from "@/components/forms";
 import { ResolveIssue } from "@/components/resolve-issue";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -61,19 +62,35 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
                 <div>
                   <p className="font-semibold">{aptLabel(issue.property)}</p>
                   <p className="text-sm text-slate-500">
-                    {issue.team ? `${issue.team === "maintenance" ? "🔧" : "🧽"} ${ISSUE_TEAM_LABELS[issue.team]}` : ISSUE_CATEGORY_LABELS[issue.category]}{" "}
-                    · {issue.reporter?.full_name || "—"} ·{" "}
-                    {formatDateTime(issue.created_at)}
+                    {issue.team
+                      ? `${issue.team === "maintenance" ? "🔧" : "🧽"} ${ISSUE_TEAM_LABELS[issue.team]}`
+                      : ISSUE_CATEGORY_LABELS[issue.category]}{" "}
+                    · {issue.reporter?.full_name || "—"} · {formatDateTime(issue.created_at)}
                   </p>
                 </div>
-                <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${urgencyStyles[issue.urgency]}`}
-                >
-                  {ISSUE_URGENCY_LABELS[issue.urgency]}
-                </span>
+                {resolved && (
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${urgencyStyles[issue.urgency]}`}
+                  >
+                    {ISSUE_URGENCY_LABELS[issue.urgency]}
+                  </span>
+                )}
               </div>
-              <p className="whitespace-pre-line">{issue.description}</p>
-              <BeforeAfter before={urls(issue.photo_paths)} after={urls(issue.resolution_photo_paths)} />
+              {resolved ? (
+                <>
+                  <p className="whitespace-pre-line">{issue.description}</p>
+                  <BeforeAfter before={urls(issue.photo_paths)} after={urls(issue.resolution_photo_paths)} />
+                </>
+              ) : (
+                <EditableIssue
+                  issueId={issue.id}
+                  description={issue.description}
+                  urgency={issue.urgency}
+                  team={issue.team}
+                  photos={issue.photo_paths.map((path) => ({ path, url: photoUrls.get(path) ?? "" }))}
+                  canChangeTeam
+                />
+              )}
               <div className="flex flex-wrap gap-4 text-sm font-medium">
                 {issue.cleaning_id && (
                   <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-brand-700">
