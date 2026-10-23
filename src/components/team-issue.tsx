@@ -1,4 +1,5 @@
 import { EditableIssue } from "@/components/editable-issue";
+import { DeleteIssue } from "@/components/delete-issue";
 import { ResolveIssue } from "@/components/resolve-issue";
 import { aptLabel } from "@/lib/buildings";
 import type { Issue, IssueWithRelations } from "@/lib/types";
@@ -29,7 +30,10 @@ export function TeamIssue({
         photos={issue.photo_paths.map((path) => ({ path, url: photoUrls.get(path) ?? "" }))}
         canChangeTeam={false}
       />
-      <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+      <div className="flex flex-wrap items-start gap-2">
+        <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+        <DeleteIssue issueId={issue.id} />
+      </div>
     </div>
   );
 }

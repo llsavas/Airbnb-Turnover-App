@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BeforeAfter } from "@/components/before-after";
 import { EditableIssue } from "@/components/editable-issue";
 import { SubmitButton } from "@/components/forms";
+import { DeleteIssue } from "@/components/delete-issue";
 import { ResolveIssue } from "@/components/resolve-issue";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { aptLabel } from "@/lib/buildings";
@@ -115,7 +116,10 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
                 </div>
               ) : (
                 <div className="border-t border-slate-100 pt-3">
-                  <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+                  <div className="flex flex-wrap items-start gap-2">
+                    <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+                    <DeleteIssue issueId={issue.id} />
+                  </div>
                 </div>
               )}
             </Card>

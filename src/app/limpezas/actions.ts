@@ -223,3 +223,17 @@ export async function updateIssue(
     return toFormState(error) ?? {};
   }
 }
+
+export async function deleteIssue(issueId: string): Promise<FormState> {
+  try {
+    await requireUser();
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("delete_issue", { issue_id: issueId });
+    if (error) return { error: error.message };
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidatePath("/limpezas", "layout");
+  revalidatePath("/admin", "layout");
+  return { success: "Problema deletado." };
+}
