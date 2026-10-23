@@ -98,11 +98,10 @@ function TaskRow({
                   } ${uploading ? "pointer-events-none opacity-60" : ""}`}
                 >
                   <CameraIcon />
-                  {uploading ? "Enviando…" : task.photo_path ? "Trocar foto" : "Tirar foto"}
+                  {uploading ? "Enviando…" : task.photo_path ? "Trocar foto" : "Adicionar foto"}
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     className="sr-only"
                     onChange={(e) => {
                       onPhoto(e.currentTarget.files?.[0]);

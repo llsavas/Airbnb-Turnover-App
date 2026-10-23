@@ -7,7 +7,7 @@ import { compressImage } from "@/lib/image";
 
 const MAX_PHOTOS = 2;
 
-// "Resolver": optional note and "after" photo taken with the camera, so the
+// "Resolver": optional note and "after" photo (camera or library), so the
 // problem shows before (report) and after (resolved).
 export function ResolveIssue({ issueId, cleaningId }: { issueId: string; cleaningId: string | null }) {
   const [open, setOpen] = useState(false);
@@ -55,14 +55,17 @@ export function ResolveIssue({ issueId, cleaningId }: { issueId: string; cleanin
           {photos.length < MAX_PHOTOS && (
             <label className="flex h-16 cursor-pointer items-center gap-1.5 rounded-lg border-2 border-dashed border-slate-300 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100">
               📷 Foto de resolvido <span className="text-slate-400">(opcional)</span>
+              {/* No "capture": the phone offers Take Photo / Photo Library / Choose File. */}
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
+                multiple
                 className="sr-only"
                 onChange={(e) => {
-                  const file = e.currentTarget.files?.[0];
-                  if (file) setPhotos((all) => [...all, { file, url: URL.createObjectURL(file) }]);
+                  const files = [...(e.currentTarget.files ?? [])];
+                  setPhotos((all) =>
+                    [...all, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS),
+                  );
                   e.currentTarget.value = "";
                 }}
               />

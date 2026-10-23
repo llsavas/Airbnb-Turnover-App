@@ -19,7 +19,8 @@ function choiceClass(selected: boolean, tone = "ring-brand-600") {
 }
 
 // (+) floating button that opens a quick "report a problem" sheet: big
-// buttons for the type and urgency, a description and the phone's camera.
+// buttons for the type and urgency, a description and photos (camera or
+// library).
 export function IssueSheet({ cleaningId }: { cleaningId: string }) {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<IssueCategory | null>(null);
@@ -184,15 +185,18 @@ export function IssueSheet({ cleaningId }: { cleaningId: string }) {
                     <span className="text-2xl" aria-hidden>
                       📷
                     </span>
-                    Tirar foto
+                    Adicionar foto
+                    {/* No "capture": the phone offers Take Photo / Photo Library / Choose File. */}
                     <input
                       type="file"
                       accept="image/*"
-                      capture="environment"
+                      multiple
                       className="sr-only"
                       onChange={(e) => {
-                        const file = e.currentTarget.files?.[0];
-                        if (file) setPhotos((all) => [...all, { file, url: URL.createObjectURL(file) }]);
+                        const files = [...(e.currentTarget.files ?? [])];
+                        setPhotos((all) =>
+                          [...all, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS),
+                        );
                         e.currentTarget.value = "";
                       }}
                     />
