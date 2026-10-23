@@ -6,10 +6,9 @@ export default async function CleanerLayout({ children }: LayoutProps<"/limpezas
   const nav = [
     { href: "/limpezas", label: "Minhas limpezas", exact: true },
     { href: "/limpezas/dicas", label: "Dicas nota 5 ★" },
-    ...(profile.role === "admin" ? [{ href: "/admin", label: "Voltar ao painel" }] : []),
   ];
   return (
-    <AppShell nav={nav} userName={profile.full_name}>
+    <AppShell nav={nav} userName={profile.full_name} mode={profile.role === "admin" ? "equipe" : undefined}>
       {children}
     </AppShell>
   );

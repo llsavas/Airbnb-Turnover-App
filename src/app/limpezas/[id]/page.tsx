@@ -34,8 +34,11 @@ function Info({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export default async function CleaningDetailPage({ params }: PageProps<"/limpezas/[id]">) {
+export default async function CleaningDetailPage({ params, searchParams }: PageProps<"/limpezas/[id]">) {
   const { id } = await params;
+  // Keeps the admin's "Ver como" choice when going back to the list.
+  const { como } = await searchParams;
+  const back = typeof como === "string" ? `/limpezas?como=${como}` : "/limpezas";
   const supabase = await createClient();
   const { data: cleaning } = await supabase
     .from("cleanings")
@@ -72,7 +75,7 @@ export default async function CleaningDetailPage({ params }: PageProps<"/limpeza
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Link href="/limpezas" className="text-sm font-medium text-brand-700">
+      <Link href={back} className="text-sm font-medium text-brand-700">
         ← Minhas limpezas
       </Link>
 

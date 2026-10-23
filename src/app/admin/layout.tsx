@@ -15,7 +15,7 @@ const NAV = [
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const profile = await requireAdmin();
   return (
-    <AppShell nav={NAV} userName={profile.full_name}>
+    <AppShell nav={NAV} userName={profile.full_name} mode="admin">
       {children}
     </AppShell>
   );
