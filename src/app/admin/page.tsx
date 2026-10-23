@@ -1,41 +1,58 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Card, EmptyState, PageHeader, buttonClass } from "@/components/ui";
-import { listCleaners, listCleanings, listIssues, listLowStock } from "@/lib/data";
-import { addDays, formatDateTime, formatDay, today } from "@/lib/dates";
+import { Card, PageHeader, Select, buttonClass } from "@/components/ui";
+import { NO_BUILDING, buildingNames } from "@/lib/buildings";
+import { listCleanings, listIssues, listLowStock, listProperties } from "@/lib/data";
+import { addDays, formatDateTime, isValidDate, isValidMonth, today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
-import type { CleaningWithRelations, SyncRun } from "@/lib/types";
+import type { SyncRun } from "@/lib/types";
+import { CheckinsView } from "./_painel/checkins";
+import { DailyView } from "./_painel/daily";
+import { MonthlyView } from "./_painel/monthly";
 import { syncNow } from "./actions";
-import { CleaningRow } from "./limpezas/cleaning-row";
 
 export const metadata: Metadata = { title: "Painel" };
-// "Sincronizar agora" / "Importar do Hospitable" call the Hospitable API.
-export const maxDuration = 60;
+// Syncing calls the Hospitable API and, for check-ins, the AI.
+export const maxDuration = 300;
 
-function Stat({ label, value, tone, href }: { label: string; value: number; tone?: string; href?: string }) {
-  const card = (
-    <Card className="h-full p-4 sm:p-4">
-      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</p>
-      <p className={`mt-1 text-3xl font-bold tabular-nums ${tone ?? "text-slate-900"}`}>{value}</p>
-    </Card>
+const TABS = [
+  { id: "diario", label: "Diário" },
+  { id: "mensal", label: "Mensal" },
+  { id: "checkins", label: "Check-ins" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+
+function Alert({ href, count, label, tone }: { href: string; count: number; label: string; tone: string }) {
+  if (count === 0) return null;
+  return (
+    <Link href={href} className={`rounded-full px-3 py-1 text-sm font-medium ring-1 ${tone}`}>
+      {count} {label}
+    </Link>
   );
-  return href ? <Link href={href}>{card}</Link> : card;
 }
 
-function count(items: CleaningWithRelations[], status: string) {
-  return items.filter((c) => c.status === status).length;
-}
+export default async function DashboardPage({ searchParams }: PageProps<"/admin">) {
+  const params = await searchParams;
+  const param = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
+  const tab: Tab = TABS.some((t) => t.id === param("aba")) ? (param("aba") as Tab) : "diario";
+  const building = param("predio");
+  const date = isValidDate(param("dia")) ? param("dia") : today();
+  const month = isValidMonth(param("mes")) ? param("mes") : date.slice(0, 7);
 
-export default async function DashboardPage() {
-  const day = today();
-  const tomorrow = addDays(day, 1);
+  // Keeps the current tab, building and date when switching any one of them.
+  const link = (changes: Record<string, string>) => {
+    const next = new URLSearchParams({ aba: tab, predio: building, dia: date, mes: month, ...changes });
+    for (const [k, v] of [...next.entries()]) if (!v) next.delete(k);
+    return `/admin?${next}`;
+  };
+
   const supabase = await createClient();
-  const [cleanings, cleaners, openIssues, lowStock, { data: lastSync }] = await Promise.all([
-    listCleanings({ from: day, to: tomorrow }),
-    listCleaners(),
+  const [properties, openIssues, lowStock, upcoming, { data: lastSync }] = await Promise.all([
+    listProperties(),
     listIssues("open"),
     listLowStock(),
+    listCleanings({ from: today(), to: addDays(today(), 1), cleanerId: "none" }),
     supabase
       .from("sync_runs")
       .select("*")
@@ -44,9 +61,7 @@ export default async function DashboardPage() {
       .maybeSingle<SyncRun>(),
   ]);
   const urgentIssues = openIssues.filter((i) => i.urgency === "urgent").length;
-  const todays = cleanings.filter((c) => c.date === day && c.status !== "cancelled");
-  const tomorrows = cleanings.filter((c) => c.date === tomorrow && c.status !== "cancelled");
-  const unassigned = [...todays, ...tomorrows].filter((c) => !c.cleaner_id && c.status === "scheduled");
+  const unassigned = upcoming.filter((c) => c.status === "scheduled").length;
 
   return (
     <>
@@ -56,27 +71,62 @@ export default async function DashboardPage() {
         </Link>
       </PageHeader>
 
-      <p className="mb-3 text-sm font-medium text-slate-500 capitalize">{formatDay(day)}</p>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Stat label="Limpezas hoje" value={todays.length} />
-        <Stat label="Em andamento" value={count(todays, "in_progress")} tone="text-amber-700" />
-        <Stat label="Concluídas" value={count(todays, "completed")} tone="text-emerald-700" />
-        <Stat label="Sem responsável" value={unassigned.length} tone={unassigned.length ? "text-red-700" : undefined} />
-        <Stat
-          label={urgentIssues ? `Problemas (${urgentIssues} urgentes)` : "Problemas abertos"}
-          value={openIssues.length}
-          tone={urgentIssues ? "text-red-700" : openIssues.length ? "text-amber-700" : undefined}
-          href="/admin/problemas"
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Alert
+          href="/admin/limpezas?pessoa=none"
+          count={unassigned}
+          label="sem responsável (hoje e amanhã)"
+          tone="bg-red-50 text-red-700 ring-red-200"
         />
-        <Stat
-          label="Itens em falta"
-          value={lowStock.length}
-          tone={lowStock.length ? "text-amber-700" : undefined}
+        <Alert
+          href="/admin/problemas"
+          count={openIssues.length}
+          label={urgentIssues ? `problemas (${urgentIssues} urgentes)` : "problemas abertos"}
+          tone={urgentIssues ? "bg-red-50 text-red-700 ring-red-200" : "bg-amber-50 text-amber-800 ring-amber-200"}
+        />
+        <Alert
           href="/admin/estoque"
+          count={lowStock.length}
+          label="itens em falta"
+          tone="bg-amber-50 text-amber-800 ring-amber-200"
         />
       </div>
 
-      <Card className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <nav className="flex rounded-xl bg-surface p-1 ring-1 ring-slate-200">
+          {TABS.map((t) => (
+            <Link
+              key={t.id}
+              href={link({ aba: t.id })}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium sm:px-4 ${
+                tab === t.id ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+        <form className="flex gap-2">
+          <input type="hidden" name="aba" value={tab} />
+          <input type="hidden" name="dia" value={date} />
+          <input type="hidden" name="mes" value={month} />
+          <Select name="predio" defaultValue={building} aria-label="Prédio" className="w-auto">
+            <option value="">Todos os prédios</option>
+            {[...buildingNames(properties), NO_BUILDING].map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </Select>
+          <button className={buttonClass("secondary")}>Filtrar</button>
+        </form>
+      </div>
+
+      {tab === "diario" && <DailyView date={date} building={building} link={link} />}
+      {tab === "mensal" && <MonthlyView month={month} building={building} link={link} />}
+      {tab === "checkins" && <CheckinsView building={building} />}
+
+      <Card className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm">
           <p className="font-semibold">Hospitable</p>
           <p className="text-slate-500">
@@ -91,43 +141,6 @@ export default async function DashboardPage() {
           <SubmitButton variant="secondary">Sincronizar agora</SubmitButton>
         </ActionForm>
       </Card>
-
-      {unassigned.length > 0 && (
-        <section className="mb-6">
-          <h2 className="mb-2 font-semibold text-red-700">Precisam de responsável (hoje e amanhã)</h2>
-          <Card className="divide-y divide-slate-100 p-0 sm:p-0">
-            {unassigned.map((c) => (
-              <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
-            ))}
-          </Card>
-        </section>
-      )}
-
-      <section className="mb-6">
-        <h2 className="mb-2 font-semibold">Hoje</h2>
-        {todays.length === 0 ? (
-          <EmptyState>Nenhuma limpeza hoje.</EmptyState>
-        ) : (
-          <Card className="divide-y divide-slate-100 p-0 sm:p-0">
-            {todays.map((c) => (
-              <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
-            ))}
-          </Card>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-semibold">Amanhã</h2>
-        {tomorrows.length === 0 ? (
-          <EmptyState>Nenhuma limpeza amanhã.</EmptyState>
-        ) : (
-          <Card className="divide-y divide-slate-100 p-0 sm:p-0">
-            {tomorrows.map((c) => (
-              <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
-            ))}
-          </Card>
-        )}
-      </section>
     </>
   );
 }

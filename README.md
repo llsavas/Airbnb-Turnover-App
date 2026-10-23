@@ -9,8 +9,17 @@ Stack: Next.js 16 (App Router) · Supabase (auth, Postgres, storage) · Vercel.
 ## What's built
 
 **Admin** (`/admin`)
-- **Painel**: today's and tomorrow's cleanings, what's in progress or done, and
-  what still has no cleaner assigned.
+- **Painel** with a building filter and three tabs:
+  - **Diário**: "X/Y apartamentos limpos" for the day, same-day check-ins
+    flagged, one collapsible block per building, and the day's maintenance.
+  - **Mensal**: calendar with the number of cleanings per day (red when there
+    is a same-day check-in); tap a day to open it.
+  - **Check-ins**: today + 3 days, per building, with each guest's name, CPF,
+    arrival time and car plate read from the Hospitable chat by AI (Vercel AI
+    Gateway), and a circle to mark it as sent to the front desk. Without the
+    AI, CPFs and plates are still found by pattern.
+- **Manutenções**: schedule repairs per apartment (date, time, who does it);
+  can start from a problem report, and finishing it resolves the report.
 - **Limpezas**: week calendar, filter by cleaner, assign a cleaner straight from
   the list, create/edit/cancel cleanings.
 - **Imóveis**: properties grouped by building (prédio), with a "responsável do prédio" shortcut that assigns a cleaner to the whole building; each property has address, access instructions, checkout/check-in

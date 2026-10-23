@@ -5,6 +5,8 @@ import type {
   InventoryItem,
   IssueStatus,
   IssueWithRelations,
+  MaintenanceStatus,
+  MaintenanceWithProperty,
   Profile,
   Property,
 } from "@/lib/types";
@@ -106,4 +108,23 @@ export async function listLowStock(): Promise<LowStockRow[]> {
       counted_at: r.counted_at,
     }))
     .sort((a, b) => a.property.name.localeCompare(b.property.name) || a.item.name.localeCompare(b.item.name));
+}
+
+export async function listMaintenances(filters: {
+  from: string;
+  to: string;
+  status?: MaintenanceStatus;
+}): Promise<MaintenanceWithProperty[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("maintenances")
+    .select("*, property:properties(id, name, building)")
+    .gte("date", filters.from)
+    .lte("date", filters.to)
+    .order("date")
+    .order("time", { nullsFirst: false });
+  if (filters.status) query = query.eq("status", filters.status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as MaintenanceWithProperty[];
 }

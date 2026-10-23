@@ -151,3 +151,53 @@ export type SyncRun = {
   updated: number;
   cancelled: number;
 };
+
+export type Checkin = {
+  id: string;
+  property_id: string;
+  external_id: string;
+  reservation_code: string | null;
+  platform: string | null;
+  guest_name: string | null;
+  guest_count: number | null;
+  checkin_date: string;
+  checkin_time: string | null;
+  checkout_date: string | null;
+  cancelled: boolean;
+  guests: { name: string; cpf: string | null }[];
+  arrival_time: string | null;
+  vehicle_plate: string | null;
+  ai_notes: string | null;
+  extracted_at: string | null;
+  registered: boolean;
+  registered_at: string | null;
+};
+
+export type CheckinWithProperty = Checkin & {
+  property: Pick<Property, "id" | "name" | "building"> | null;
+};
+
+export type MaintenanceStatus = "scheduled" | "done" | "cancelled";
+
+export type Maintenance = {
+  id: string;
+  property_id: string;
+  date: string;
+  time: string | null;
+  title: string;
+  description: string | null;
+  assignee: string | null;
+  status: MaintenanceStatus;
+  issue_id: string | null;
+  done_at: string | null;
+};
+
+export type MaintenanceWithProperty = Maintenance & {
+  property: Pick<Property, "id" | "name" | "building"> | null;
+};
+
+export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
+  scheduled: "Agendada",
+  done: "Feita",
+  cancelled: "Cancelada",
+};

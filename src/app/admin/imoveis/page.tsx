@@ -88,22 +88,24 @@ export default async function PropertiesPage({ searchParams }: PageProps<"/admin
                   {group.building !== NO_BUILDING && cleaners.length > 0 && (
                     <ActionForm
                       action={setBuildingCleaner.bind(null, group.building)}
-                      className="flex flex-wrap items-center gap-2 text-sm"
+                      className="flex w-full items-center gap-2 text-sm sm:w-auto"
                     >
-                      <Select
-                        name="cleaner_id"
-                        defaultValue={shared ?? ""}
-                        required
-                        aria-label={`Responsável pelo prédio ${group.building}`}
-                        className="w-auto py-1.5"
-                      >
-                        <option value="">Responsável do prédio…</option>
-                        {cleaners.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.full_name}
-                          </option>
-                        ))}
-                      </Select>
+                      <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                        <Select
+                          name="cleaner_id"
+                          defaultValue={shared ?? ""}
+                          required
+                          aria-label={`Responsável pelo prédio ${group.building}`}
+                          className="py-1.5"
+                        >
+                          <option value="">Responsável do prédio…</option>
+                          {cleaners.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.full_name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
                       <SubmitButton variant="secondary" className="py-1.5">
                         Aplicar
                       </SubmitButton>

@@ -23,3 +23,11 @@ export function buildingNames(properties: { building: string | null }[]): string
     a.localeCompare(b, "pt-BR"),
   );
 }
+
+// "Skyline · Apto 406" from a name like "406 Marcel - Skyline - Cam".
+export function aptLabel(property: { name: string; building: string | null } | null | undefined): string {
+  if (!property) return "Imóvel removido";
+  const number = property.name.match(/^\d+/)?.[0];
+  if (!number || !property.building) return property.name;
+  return `${property.building} · Apto ${number}`;
+}

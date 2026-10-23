@@ -1,9 +1,11 @@
 import "server-only";
+import { readGuestDetails, readGuestDetailsByPattern, type GuestDetails } from "@/lib/checkin-ai";
 import { addDays, today } from "@/lib/dates";
 import { createAdminClient } from "@/lib/supabase/server";
 
 const API_URL = "https://public.api.hospitable.com/v2";
-// Cleanings are created for checkouts from yesterday until this many days ahead.
+// Cleanings are created for checkouts from the start of the current month (so
+// the monthly calendar is complete) until this many days ahead.
 const DAYS_AHEAD = 30;
 // How far past the window to look for the next check-in after a checkout.
 const NEXT_CHECKIN_LOOKAHEAD = 30;
@@ -12,11 +14,15 @@ const CHUNK_SIZE = 20;
 
 type HospitableReservation = {
   id: string;
+  code?: string;
+  platform?: string;
   check_in: string; // "2026-10-20T15:00:00-03:00", already in the property's time zone
   check_out: string;
   status?: string;
   reservation_status?: { current?: { category?: string } };
   guests?: { total?: number };
+  guest?: { first_name?: string | null; last_name?: string | null };
+  last_message_at?: string | null;
   properties?: { id: string }[];
 };
 
@@ -68,7 +74,7 @@ async function getReservations(
       start_date: from,
       end_date: to,
       date_query: dateQuery,
-      include: "properties",
+      include: "properties,guest",
     });
     propertyIds.slice(i, i + CHUNK_SIZE).forEach((id) => params.append("properties[]", id));
     for (const r of await getAll<HospitableReservation>("/reservations", params)) byId.set(r.id, r);
@@ -101,7 +107,7 @@ export async function syncHospitable(): Promise<SyncResult> {
 
     const localId = new Map(properties.map((p) => [p.hospitable_property_id as string, p.id]));
     const hospitableIds = [...localId.keys()];
-    const from = addDays(today(), -1);
+    const from = [addDays(today(), -1), `${today().slice(0, 7)}-01`].sort()[0];
     const to = addDays(today(), DAYS_AHEAD);
 
     const [checkouts, checkins] = await Promise.all([
@@ -149,6 +155,47 @@ export async function syncHospitable(): Promise<SyncResult> {
     });
     if (syncError) throw syncError;
 
+    // Arrivals feed the Check-ins tab. Only reservation fields are written, so
+    // what the AI read from the chat and the "registered" flag are kept.
+    const arrivals = checkins.filter((r) => day(r.check_in) >= from && day(r.check_in) <= to);
+    const checkinRows = arrivals.flatMap((r) => {
+      const propertyId = r.properties?.[0]?.id && localId.get(r.properties[0].id);
+      if (!propertyId) return [];
+      const guestName = [r.guest?.first_name, r.guest?.last_name].filter(Boolean).join(" ").trim();
+      return [
+        {
+          external_id: r.id,
+          property_id: propertyId,
+          reservation_code: r.code ?? null,
+          platform: r.platform ?? null,
+          guest_name: guestName || null,
+          guest_count: r.guests?.total ?? null,
+          checkin_date: day(r.check_in),
+          checkin_time: time(r.check_in),
+          checkout_date: day(r.check_out),
+          last_message_at: r.last_message_at ?? null,
+          cancelled: false,
+        },
+      ];
+    });
+    if (checkinRows.length > 0) {
+      const { error: checkinError } = await supabase
+        .from("checkins")
+        .upsert(checkinRows, { onConflict: "external_id" });
+      if (checkinError) throw checkinError;
+    }
+    let cancelQuery = supabase
+      .from("checkins")
+      .update({ cancelled: true })
+      .gte("checkin_date", from)
+      .lte("checkin_date", to)
+      .eq("cancelled", false);
+    if (checkinRows.length > 0) {
+      cancelQuery = cancelQuery.not("external_id", "in", `(${checkinRows.map((c) => `"${c.external_id}"`).join(",")})`);
+    }
+    const { error: cancelError } = await cancelQuery;
+    if (cancelError) throw cancelError;
+
     const counts = result as SyncResult;
     if (run) {
       await supabase
@@ -192,4 +239,66 @@ export async function importHospitableProperties(): Promise<number> {
     .select("id");
   if (error) throw error;
   return data.length;
+}
+
+type HospitableMessage = {
+  body: string | null;
+  sender_type: string; // "guest" | "host"
+  created_at: string;
+};
+
+// Reads the reservation chat for the next few days' arrivals and stores what
+// the front desk needs: every guest's name and CPF, arrival time and car
+// plate. Only reservations with new messages since the last AI read are sent
+// again. If the AI is unavailable, CPFs and plates are still picked up by
+// pattern and the reservation is retried on the next run.
+export async function extractCheckinDetails(
+  daysAhead = 3,
+): Promise<{ read: number; aiError: string | null }> {
+  const supabase = createAdminClient();
+  const from = today();
+  const { data: pending, error } = await supabase
+    .from("checkins")
+    .select("id, external_id, guest_name, last_message_at, extracted_at")
+    .gte("checkin_date", from)
+    .lte("checkin_date", addDays(from, daysAhead))
+    .eq("cancelled", false);
+  if (error) throw error;
+
+  const toRead = pending.filter(
+    (c) => !c.extracted_at || (c.last_message_at && c.last_message_at > c.extracted_at),
+  );
+
+  let read = 0;
+  let aiError: string | null = null;
+  // A few at a time: Hospitable limits message reads.
+  for (let i = 0; i < toRead.length; i += 4) {
+    await Promise.all(
+      toRead.slice(i, i + 4).map(async (checkin) => {
+        const res = await fetch(`${API_URL}/reservations/${checkin.external_id}/messages`, {
+          headers: { Authorization: `Bearer ${token()}`, Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const { data: messages } = (await res.json()) as { data: HospitableMessage[] };
+
+        let details: GuestDetails;
+        let extractedAt: string | null = new Date().toISOString();
+        try {
+          details = await readGuestDetails(checkin.guest_name, messages);
+        } catch (e) {
+          aiError ??= e instanceof Error ? e.message : String(e);
+          details = readGuestDetailsByPattern(messages);
+          extractedAt = null;
+        }
+        const { error: updateError } = await supabase
+          .from("checkins")
+          .update({ ...details, extracted_at: extractedAt })
+          .eq("id", checkin.id);
+        if (updateError) throw updateError;
+        read++;
+      }),
+    );
+  }
+  return { read, aiError };
 }

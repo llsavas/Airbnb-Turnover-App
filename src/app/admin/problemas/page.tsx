@@ -76,11 +76,18 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
                   })}
                 </div>
               )}
-              {issue.cleaning_id && (
-                <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-sm font-medium text-brand-700">
-                  Ver limpeza →
-                </Link>
-              )}
+              <div className="flex flex-wrap gap-4 text-sm font-medium">
+                {issue.cleaning_id && (
+                  <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-brand-700">
+                    Ver limpeza →
+                  </Link>
+                )}
+                {!resolved && (
+                  <Link href={`/admin/manutencoes?problema=${issue.id}`} className="text-brand-700">
+                    Agendar manutenção →
+                  </Link>
+                )}
+              </div>
               {resolved ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm">
                   <p className="text-emerald-700">

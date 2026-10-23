@@ -1,7 +1,7 @@
-import { syncHospitable } from "@/lib/hospitable";
+import { extractCheckinDetails, syncHospitable } from "@/lib/hospitable";
 
 // Fetching reservations for every property can take a while.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // Called by Vercel Cron (see vercel.json) or any scheduler that sends
 // "Authorization: Bearer <CRON_SECRET>".
@@ -11,7 +11,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    return Response.json(await syncHospitable());
+    const cleanings = await syncHospitable();
+    const checkins = await extractCheckinDetails();
+    return Response.json({ ...cleanings, checkins });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : String(error) },

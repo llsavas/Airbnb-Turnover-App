@@ -51,3 +51,35 @@ export function formatDateTime(iso: string): string {
     timeZone: TIME_ZONE,
   }).format(new Date(iso));
 }
+
+// "sex., 23 de out."
+export function formatDayShort(date: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
+// "outubro de 2026" for a "YYYY-MM" month.
+export function formatMonth(month: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${month}-15T12:00:00Z`),
+  );
+}
+
+export function isValidMonth(value: string | undefined): value is string {
+  return !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+export function addMonths(month: string, months: number): string {
+  const d = new Date(`${month}-15T12:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 7);
+}
+
+export function daysInMonth(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
