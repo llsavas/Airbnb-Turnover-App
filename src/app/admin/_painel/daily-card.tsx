@@ -36,10 +36,10 @@ export function releaseText(cleaning: CleaningWithRelations): string | null {
   return nowTime() >= said ? `Liberado às ${formatHour(said)} (hóspede saiu)` : `Hóspede sai às ${formatHour(said)}`;
 }
 
-function Badges({ cleaning }: { cleaning: CleaningWithRelations }) {
+function Badges({ cleaning, todos }: { cleaning: CleaningWithRelations; todos: number }) {
   const sameDay = cleaning.next_checkin === cleaning.date;
   const release = releaseText(cleaning);
-  if (!sameDay && !release) return null;
+  if (!sameDay && !release && !todos) return null;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {sameDay && (
@@ -52,6 +52,11 @@ function Badges({ cleaning }: { cleaning: CleaningWithRelations }) {
           {release}
         </span>
       )}
+      {todos > 0 && (
+        <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+          🧽 {todos === 1 ? "1 problema para resolver" : `${todos} problemas para resolver`}
+        </span>
+      )}
     </div>
   );
 }
@@ -62,7 +67,15 @@ function cardRing(cleaning: CleaningWithRelations) {
 }
 
 // Team app: tap the card to open the cleaning.
-export function TeamCleaningCard({ cleaning, photos }: { cleaning: CleaningWithRelations; photos: number }) {
+export function TeamCleaningCard({
+  cleaning,
+  photos,
+  todos,
+}: {
+  cleaning: CleaningWithRelations;
+  photos: number;
+  todos: number;
+}) {
   return (
     <Link
       href={`/limpezas/${cleaning.id}`}
@@ -72,7 +85,7 @@ export function TeamCleaningCard({ cleaning, photos }: { cleaning: CleaningWithR
         <div>
           <p className="text-lg font-bold">{aptTitle(cleaning.property?.name)}</p>
           <p className="text-xs text-slate-500">{photos} foto(s)</p>
-          <Badges cleaning={cleaning} />
+          <Badges cleaning={cleaning} todos={todos} />
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
           <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Observações do admin</p>
@@ -88,10 +101,12 @@ export function DailyCleaningCard({
   cleaning,
   cleaners,
   photos,
+  todos,
 }: {
   cleaning: CleaningWithRelations;
   cleaners: Profile[];
   photos: number;
+  todos: number;
 }) {
   const open = cleaning.status === "scheduled" || cleaning.status === "in_progress";
 
@@ -107,7 +122,7 @@ export function DailyCleaningCard({
           <p className="text-xs text-slate-500">
             {cleaning.cleaner?.full_name ?? "Sem responsável"} · {photos} foto(s)
           </p>
-          <Badges cleaning={cleaning} />
+          <Badges cleaning={cleaning} todos={todos} />
         </div>
         <StatusBadge status={cleaning.status} />
       </Link>

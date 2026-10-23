@@ -93,6 +93,13 @@ export type ChecklistItem = {
 export type IssueCategory = "damage" | "maintenance" | "missing_item" | "dirty" | "forgotten_item" | "other";
 export type IssueUrgency = "low" | "normal" | "urgent";
 export type IssueStatus = "open" | "resolved";
+// Who should fix it, when the admin set it.
+export type IssueTeam = "maintenance" | "cleaning";
+
+export const ISSUE_TEAM_LABELS: Record<IssueTeam, string> = {
+  maintenance: "Manutenção",
+  cleaning: "Limpeza",
+};
 
 export type Issue = {
   id: string;
@@ -104,6 +111,7 @@ export type Issue = {
   description: string;
   photo_paths: string[];
   status: IssueStatus;
+  team: IssueTeam | null;
   resolution: string | null;
   // "After" photos sent when resolving.
   resolution_photo_paths: string[];
@@ -112,7 +120,7 @@ export type Issue = {
 };
 
 export type IssueWithRelations = Issue & {
-  property: Pick<Property, "id" | "name"> | null;
+  property: Pick<Property, "id" | "name" | "building"> | null;
   reporter: Pick<Profile, "id" | "full_name"> | null;
 };
 

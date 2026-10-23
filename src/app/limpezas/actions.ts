@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { FormError, requiredText, text, toFormState, type FormState } from "@/lib/form";
-import { uploadCleaningPhoto } from "@/lib/photos";
+import { uploadCleaningPhoto, uploadIssuePhoto } from "@/lib/photos";
 import {
   ISSUE_CATEGORY_LABELS,
   ISSUE_URGENCY_LABELS,
@@ -155,9 +155,16 @@ export async function resolveIssueWithPhotos(
   try {
     await requireUser();
     const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
-    if (files.length > 0 && !cleaningId) throw new FormError("Este problema não tem limpeza para guardar a foto.");
-    const paths = cleaningId ? await Promise.all(files.map((f) => uploadCleaningPhoto(cleaningId, f))) : [];
     const supabase = await createClient();
+    let paths: string[] = [];
+    if (files.length > 0 && cleaningId) {
+      paths = await Promise.all(files.map((f) => uploadCleaningPhoto(cleaningId, f)));
+    } else if (files.length > 0) {
+      // Problems registered without a cleaning keep photos in the apartment's folder.
+      const { data: issue } = await supabase.from("issues").select("property_id").eq("id", issueId).single();
+      if (!issue) throw new FormError("Problema não encontrado.");
+      paths = await Promise.all(files.map((f) => uploadIssuePhoto(issue.property_id, f)));
+    }
     const { error } = await supabase.rpc("resolve_issue", {
       issue_id: issueId,
       resolution_text: text(formData, "resolution") ?? "",
@@ -167,7 +174,7 @@ export async function resolveIssueWithPhotos(
   } catch (error) {
     return toFormState(error);
   }
-  if (cleaningId) revalidateCleaning(cleaningId);
+  revalidatePath("/limpezas", "layout");
   revalidatePath("/admin", "layout");
   return { success: "Problema resolvido." };
 }

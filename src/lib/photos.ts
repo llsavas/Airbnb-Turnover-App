@@ -26,6 +26,12 @@ export async function uploadReferencePhoto(propertyId: string, file: File): Prom
   return uploadPhoto(`padrao/${propertyId}`, file);
 }
 
+// Photo of a problem without a cleaning (registered by the admin), and its
+// "after" photo when resolved.
+export async function uploadIssuePhoto(propertyId: string, file: File): Promise<string> {
+  return uploadPhoto(`problemas/${propertyId}`, file);
+}
+
 async function uploadPhoto(folder: string, file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("O arquivo precisa ser uma foto.");
   const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";

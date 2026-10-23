@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { Card, EmptyState, FlameIcon } from "@/components/ui";
 import { aptLabel, groupByBuilding, inBuildings } from "@/lib/buildings";
-import { countPhotosForDate, listBuildingStock, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
+import {
+  countPhotosForDate,
+  listBuildingStock,
+  listCleaners,
+  listCleaningTeamIssues,
+  listCleanings,
+  listMaintenances,
+} from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
 import { BuildingAccordion, UrgentBadge } from "./building-accordion";
 import { BuildingStockForm } from "./building-stock";
@@ -20,14 +27,18 @@ export async function DailyView({
   link: (params: Record<string, string>) => string;
   mode: "admin" | "team";
 }) {
-  const [allCleanings, cleaners, allMaintenances, stock, photos] = await Promise.all([
+  const [allCleanings, cleaners, allMaintenances, stock, photos, todos] = await Promise.all([
     listCleanings({ from: date, to: date }),
     mode === "admin" ? listCleaners() : Promise.resolve([]),
     mode === "admin" ? listMaintenances({ from: date, to: date, status: "scheduled" }) : Promise.resolve([]),
     // The team counts each building's stock from its block.
     mode === "team" ? listBuildingStock() : Promise.resolve([]),
     countPhotosForDate(date),
+    listCleaningTeamIssues(),
   ]);
+  // Problems the cleaning team should fix in each apartment.
+  const todoCount = new Map<string, number>();
+  for (const i of todos) todoCount.set(i.property_id, (todoCount.get(i.property_id) ?? 0) + 1);
   const stockOf = new Map(stock.map((s) => [s.building, s]));
   const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuildings(buildings, c.property?.building));
   const maintenances = allMaintenances.filter((m) => inBuildings(buildings, m.property?.building));
@@ -90,9 +101,20 @@ export async function DailyView({
                   )}
                   {items.map((c) =>
                     mode === "admin" ? (
-                      <DailyCleaningCard key={c.id} cleaning={c} cleaners={cleaners} photos={photos.get(c.id) ?? 0} />
+                      <DailyCleaningCard
+                        key={c.id}
+                        cleaning={c}
+                        cleaners={cleaners}
+                        photos={photos.get(c.id) ?? 0}
+                        todos={todoCount.get(c.property_id) ?? 0}
+                      />
                     ) : (
-                      <TeamCleaningCard key={c.id} cleaning={c} photos={photos.get(c.id) ?? 0} />
+                      <TeamCleaningCard
+                        key={c.id}
+                        cleaning={c}
+                        photos={photos.get(c.id) ?? 0}
+                        todos={todoCount.get(c.property_id) ?? 0}
+                      />
                     ),
                   )}
                 </div>

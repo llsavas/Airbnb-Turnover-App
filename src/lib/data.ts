@@ -60,7 +60,7 @@ export async function listCleanings(filters: {
 }
 
 export const ISSUE_SELECT =
-  "*, property:properties(id, name), reporter:profiles!issues_reported_by_fkey(id, full_name)";
+  "*, property:properties(id, name, building), reporter:profiles!issues_reported_by_fkey(id, full_name)";
 
 export async function listIssues(status: IssueStatus): Promise<IssueWithRelations[]> {
   const supabase = await createClient();
@@ -173,3 +173,16 @@ export const listBuildingCounts = cache(async (): Promise<{ name: string; count:
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 });
+
+// Open problems the admin addressed to the cleaning team.
+export async function listCleaningTeamIssues(): Promise<IssueWithRelations[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("issues")
+    .select(ISSUE_SELECT)
+    .eq("status", "open")
+    .eq("team", "cleaning")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data as IssueWithRelations[];
+}

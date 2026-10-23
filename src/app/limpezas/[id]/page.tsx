@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { BeforeAfter } from "@/components/before-after";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { ResolveIssue } from "@/components/resolve-issue";
+import { TeamIssue } from "@/components/team-issue";
 import { Card, FlameIcon, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
+import { listCleaningTeamIssues } from "@/lib/data";
 import { formatDateTime, formatDayShort } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
@@ -43,7 +45,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
   const supabase = await createClient();
   // Everything in one go: the cleaning with its apartment's standard, plus
   // its checklist and problems.
-  const [profile, { data: cleaning }, { data: tasks }, { data: issues }] = await Promise.all([
+  const [profile, { data: cleaning }, { data: tasks }, { data: issues }, todos] = await Promise.all([
     requireUser(),
     supabase
       .from("cleanings")
@@ -54,8 +56,11 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       .maybeSingle<CleaningDetail>(),
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
     supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
+    listCleaningTeamIssues(),
   ]);
   if (!cleaning) notFound();
+  // Problems the admin left for the cleaning team in this apartment.
+  const apartmentTodos = todos.filter((i) => i.property_id === cleaning.property_id && i.cleaning_id !== id);
 
   const fromAdmin = de === "admin" && profile.role === "admin";
   const back = fromAdmin ? `/admin?dia=${cleaning.date}` : `/limpezas?dia=${cleaning.date}`;
@@ -69,6 +74,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
     ...(tasks ?? []).map((t) => t.photo_path),
     ...(refPhotos ?? []).map((p) => p.path),
     ...(issues ?? []).flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]),
+    ...apartmentTodos.flatMap((i) => i.photo_paths),
   ]);
   const hasStandard = !!standard?.notes || !!linens?.length || !!refPhotos?.length;
   const inProgress = cleaning.status === "in_progress";
@@ -171,6 +177,15 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
           editable
           tasks={tasks.map((t) => ({ ...t, photo_url: t.photo_path ? (photoUrls.get(t.photo_path) ?? null) : null }))}
         />
+      )}
+
+      {apartmentTodos.length > 0 && cleaning.status !== "completed" && (
+        <Card className="space-y-3">
+          <h2 className="font-semibold">Para resolver neste apartamento</h2>
+          {apartmentTodos.map((issue) => (
+            <TeamIssue key={issue.id} issue={issue} photoUrls={photoUrls} showApartment={false} />
+          ))}
+        </Card>
       )}
 
       {issues && issues.length > 0 && (

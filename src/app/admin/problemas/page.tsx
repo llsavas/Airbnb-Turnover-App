@@ -4,11 +4,13 @@ import { BeforeAfter } from "@/components/before-after";
 import { SubmitButton } from "@/components/forms";
 import { ResolveIssue } from "@/components/resolve-issue";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
-import { listIssues } from "@/lib/data";
+import { aptLabel } from "@/lib/buildings";
+import { listIssues, listProperties } from "@/lib/data";
 import { formatDateTime } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
-import { ISSUE_CATEGORY_LABELS, ISSUE_URGENCY_LABELS, type IssueUrgency } from "@/lib/types";
+import { ISSUE_CATEGORY_LABELS, ISSUE_TEAM_LABELS, ISSUE_URGENCY_LABELS, type IssueUrgency } from "@/lib/types";
 import { reopenIssue } from "./actions";
+import { IssueComposer } from "./issue-composer";
 
 export const metadata: Metadata = { title: "Problemas" };
 
@@ -23,27 +25,31 @@ const URGENCY_ORDER: IssueUrgency[] = ["urgent", "normal", "low"];
 export default async function IssuesPage({ searchParams }: PageProps<"/admin/problemas">) {
   const { status } = await searchParams;
   const resolved = status === "resolvidos";
-  const issues = await listIssues(resolved ? "resolved" : "open");
+  const [issues, apartments] = await Promise.all([listIssues(resolved ? "resolved" : "open"), listProperties()]);
   if (!resolved) issues.sort((a, b) => URGENCY_ORDER.indexOf(a.urgency) - URGENCY_ORDER.indexOf(b.urgency));
   const photoUrls = await signedPhotoUrls(issues.flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]));
   const urls = (paths: string[]) => paths.flatMap((p) => (photoUrls.get(p) ? [photoUrls.get(p)!] : []));
 
   return (
     <>
-      <PageHeader title="Problemas">
-        <Link
-          href="/admin/problemas"
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${!resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
-        >
-          Abertos
-        </Link>
-        <Link
-          href="/admin/problemas?status=resolvidos"
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
-        >
-          Resolvidos
-        </Link>
-      </PageHeader>
+      <PageHeader title="Problemas" />
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start">
+        <nav className="flex shrink-0 gap-2">
+          <Link
+            href="/admin/problemas"
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${!resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
+          >
+            Abertos
+          </Link>
+          <Link
+            href="/admin/problemas?status=resolvidos"
+            className={`rounded-lg px-3 py-2 text-sm font-medium ${resolved ? "bg-brand-700 text-white" : "text-slate-600 ring-1 ring-slate-300"}`}
+          >
+            Resolvidos
+          </Link>
+        </nav>
+        <IssueComposer apartments={apartments.map((a) => ({ id: a.id, name: a.name, building: a.building }))} />
+      </div>
 
       {issues.length === 0 ? (
         <EmptyState>{resolved ? "Nenhum problema resolvido ainda." : "Nenhum problema aberto. 🎉"}</EmptyState>
@@ -53,9 +59,10 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
             <Card key={issue.id} className="space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold">{issue.property?.name}</p>
+                  <p className="font-semibold">{aptLabel(issue.property)}</p>
                   <p className="text-sm text-slate-500">
-                    {ISSUE_CATEGORY_LABELS[issue.category]} · {issue.reporter?.full_name ?? "—"} ·{" "}
+                    {issue.team ? `${issue.team === "maintenance" ? "🔧" : "🧽"} ${ISSUE_TEAM_LABELS[issue.team]}` : ISSUE_CATEGORY_LABELS[issue.category]}{" "}
+                    · {issue.reporter?.full_name || "—"} ·{" "}
                     {formatDateTime(issue.created_at)}
                   </p>
                 </div>
