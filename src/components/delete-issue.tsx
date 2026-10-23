@@ -31,8 +31,8 @@ export function DeleteIssue({ issueId }: { issueId: string }) {
             }
           });
         }}
-        className={`rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60 ${
-          armed ? "ring-2 ring-red-300" : ""
+        className={`rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60 ${
+          armed ? "ring-2 ring-brand-600 ring-offset-2 ring-offset-surface" : ""
         }`}
       >
         {pending ? "Deletando…" : armed ? "Toque de novo para deletar" : "Deletar"}
