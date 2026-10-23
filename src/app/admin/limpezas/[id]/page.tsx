@@ -28,21 +28,12 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
   ]);
   if (!cleaning) notFound();
 
-  const [{ data: taskRows }, { data: issueRows }, { data: countRows }] = await Promise.all([
+  const [{ data: taskRows }, { data: issueRows }] = await Promise.all([
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position"),
     supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at"),
-    supabase
-      .from("property_inventory")
-      .select("quantity, par_level, item:inventory_items(name, unit, default_par)")
-      .eq("cleaning_id", id),
   ]);
   const tasks = (taskRows ?? []) as CleaningTask[];
   const issues = (issueRows ?? []) as Issue[];
-  const counts = (countRows ?? []) as unknown as {
-    quantity: number;
-    par_level: number | null;
-    item: { name: string; unit: string; default_par: number };
-  }[];
   const photoUrls = await signedPhotoUrls([
     ...tasks.map((t) => t.photo_path),
     ...issues.flatMap((i) => i.photo_paths),
@@ -133,7 +124,7 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
           )}
         </aside>
       </div>
-      {(tasks.length > 0 || issues.length > 0 || counts.length > 0) && (
+      {(tasks.length > 0 || issues.length > 0) && (
         <section className="mt-8 max-w-3xl space-y-4">
           <h2 className="text-lg font-bold">Relatório da limpeza</h2>
 
@@ -204,25 +195,6 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
               <Link href="/admin/problemas" className="text-sm font-medium text-brand-700">
                 Ver todos os problemas →
               </Link>
-            </Card>
-          )}
-
-          {counts.length > 0 && (
-            <Card>
-              <h3 className="mb-2 font-semibold">Estoque contado</h3>
-              <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-                {counts.map((c) => {
-                  const par = c.par_level ?? c.item.default_par;
-                  return (
-                    <li key={c.item.name} className="flex justify-between">
-                      <span>{c.item.name}</span>
-                      <span className={c.quantity < par ? "font-semibold text-red-700" : "text-slate-600"}>
-                        {c.quantity} / {par} {c.item.unit}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
             </Card>
           )}
         </section>

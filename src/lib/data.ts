@@ -73,41 +73,55 @@ export async function listIssues(status: IssueStatus): Promise<IssueWithRelation
   return data as IssueWithRelations[];
 }
 
-export type LowStockRow = {
-  property: Pick<Property, "id" | "name">;
+export type BuildingStockRow = {
   item: Pick<InventoryItem, "id" | "name" | "unit">;
-  quantity: number;
+  quantity: number | null;
+  // Effective minimum: the building's own, or item default × apartments.
   par: number;
+  customPar: number | null;
   counted_at: string | null;
 };
 
-// Items whose last count is below the minimum, across active properties.
-export async function listLowStock(): Promise<LowStockRow[]> {
+export type BuildingStock = { building: string; apartments: number; rows: BuildingStockRow[] };
+
+// Stock of every building (counted in its supply room by the team).
+export async function listBuildingStock(): Promise<BuildingStock[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("property_inventory")
-    .select(
-      "quantity, par_level, counted_at, property:properties!inner(id, name, active), item:inventory_items!inner(id, name, unit, default_par, active)",
-    )
-    .not("quantity", "is", null);
+  const [buildings, { data: items, error: itemsError }, { data: counts, error }] = await Promise.all([
+    listBuildingCounts(),
+    supabase.from("inventory_items").select("*").eq("active", true).order("position"),
+    supabase.from("building_inventory").select("building, item_id, quantity, par_level, counted_at"),
+  ]);
+  if (itemsError) throw itemsError;
   if (error) throw error;
-  type Row = {
-    quantity: number;
-    par_level: number | null;
-    counted_at: string | null;
-    property: Pick<Property, "id" | "name" | "active">;
-    item: InventoryItem;
-  };
-  return (data as unknown as Row[])
-    .filter((r) => r.property.active && r.item.active && r.quantity < (r.par_level ?? r.item.default_par))
-    .map((r) => ({
-      property: { id: r.property.id, name: r.property.name },
-      item: { id: r.item.id, name: r.item.name, unit: r.item.unit },
-      quantity: r.quantity,
-      par: r.par_level ?? r.item.default_par,
-      counted_at: r.counted_at,
-    }))
-    .sort((a, b) => a.property.name.localeCompare(b.property.name) || a.item.name.localeCompare(b.item.name));
+  const byKey = new Map(
+    (counts ?? []).map((c: { building: string; item_id: string }) => [`${c.building}|${c.item_id}`, c]),
+  );
+  return buildings.map((b) => ({
+    building: b.name,
+    apartments: b.count,
+    rows: (items as InventoryItem[]).map((item) => {
+      const count = byKey.get(`${b.name}|${item.id}`) as
+        | { quantity: number | null; par_level: number | null; counted_at: string | null }
+        | undefined;
+      return {
+        item: { id: item.id, name: item.name, unit: item.unit },
+        quantity: count?.quantity ?? null,
+        par: count?.par_level ?? item.default_par * b.count,
+        customPar: count?.par_level ?? null,
+        counted_at: count?.counted_at ?? null,
+      };
+    }),
+  }));
+}
+
+export type LowStockRow = BuildingStockRow & { building: string };
+
+// Items whose last count is below the building's minimum.
+export async function listLowStock(): Promise<LowStockRow[]> {
+  return (await listBuildingStock()).flatMap((b) =>
+    b.rows.filter((r) => r.quantity !== null && r.quantity < r.par).map((r) => ({ ...r, building: b.building })),
+  );
 }
 
 export async function listMaintenances(filters: {

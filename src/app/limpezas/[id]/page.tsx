@@ -14,14 +14,13 @@ import {
   type InventoryItem,
   type Issue,
   type Property,
-  type PropertyInventory,
   type PropertyLinen,
   type ReferencePhoto,
 } from "@/lib/types";
 import { aptTitle, releaseText, scheduleLine } from "../../admin/_painel/daily-card";
 import { completeCleaning, saveInventory, startCleaning } from "../actions";
 import { Checklist } from "./checklist";
-import { IssueForm } from "./issue-form";
+import { IssueSheet } from "./issue-sheet";
 
 export const metadata: Metadata = { title: "Limpeza" };
 // Photo uploads from phones on mobile data.
@@ -54,14 +53,15 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
     { data: standard },
     { data: linens },
     { data: refPhotos },
+    { count: buildingApartments },
   ] = await Promise.all([
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
     supabase.from("inventory_items").select("*").eq("active", true).order("position").overrideTypes<InventoryItem[], { merge: false }>(),
     supabase
-      .from("property_inventory")
-      .select("*")
-      .eq("property_id", cleaning.property_id)
-      .overrideTypes<PropertyInventory[], { merge: false }>(),
+      .from("building_inventory")
+      .select("item_id, quantity, par_level")
+      .eq("building", cleaning.property?.building ?? "")
+      .overrideTypes<{ item_id: string; quantity: number | null; par_level: number | null }[], { merge: false }>(),
     supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
     supabase.from("property_standards").select("notes").eq("property_id", cleaning.property_id).maybeSingle(),
     supabase
@@ -76,6 +76,11 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       .eq("property_id", cleaning.property_id)
       .order("position")
       .overrideTypes<ReferencePhoto[], { merge: false }>(),
+    supabase
+      .from("properties")
+      .select("*", { count: "exact", head: true })
+      .eq("building", cleaning.property?.building ?? "")
+      .eq("active", true),
   ]);
   const photoUrls = await signedPhotoUrls([
     ...(tasks ?? []).map((t) => t.photo_path),
@@ -89,7 +94,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
   const sameDay = cleaning.next_checkin === cleaning.date;
 
   return (
-    <div className="mx-auto max-w-xl space-y-4">
+    <div className="mx-auto max-w-xl space-y-4 pb-20">
       <Link href={back} className="text-sm font-medium text-slate-600 hover:text-slate-900">
         ‹ Voltar
       </Link>
@@ -129,8 +134,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
           <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Observações do admin</p>
-          <p>{scheduleLine(cleaning)}</p>
-          {cleaning.notes && <p className="whitespace-pre-line">{cleaning.notes}</p>}
+          <p className="whitespace-pre-line">{cleaning.notes ?? scheduleLine(cleaning)}</p>
           {property?.access_instructions && (
             <p className="mt-1 whitespace-pre-line text-slate-600">Acesso: {property.access_instructions}</p>
           )}
@@ -186,14 +190,17 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
         />
       )}
 
-      {inProgress && items && items.length > 0 && (
+      {inProgress && items && items.length > 0 && property?.building && (
         <details className="rounded-xl bg-surface shadow-sm ring-1 ring-slate-200">
-          <summary className="cursor-pointer px-4 py-3 font-semibold">Estoque</summary>
+          <summary className="cursor-pointer px-4 py-3 font-semibold">Estoque do prédio {property.building}</summary>
           <ActionForm action={saveInventory.bind(null, id)} className="space-y-2 px-4 pb-4">
-            <p className="text-sm text-slate-500">Quanto ficou no apartamento depois de repor (mínimo entre parênteses).</p>
+            <p className="text-sm text-slate-500">
+              Quanto tem no depósito do prédio agora (mínimo entre parênteses). Não precisa contar a cada limpeza:
+              só quando passar por lá.
+            </p>
             {items.map((item) => {
               const last = lastCount.get(item.id);
-              const par = last?.par_level ?? item.default_par;
+              const par = last?.par_level ?? item.default_par * (buildingApartments ?? 1);
               return (
                 <label key={item.id} className="flex items-center justify-between gap-3">
                   <span className="text-[15px]">
@@ -230,7 +237,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
         </Card>
       )}
 
-      {inProgress && <IssueForm cleaningId={id} />}
+      {(inProgress || cleaning.status === "scheduled") && <IssueSheet cleaningId={id} />}
 
       {inProgress && (
         <ActionForm action={completeCleaning.bind(null, id)}>

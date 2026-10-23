@@ -52,15 +52,37 @@ export async function updateItem(id: string, _: FormState, formData: FormData): 
   return { success: "Salvo." };
 }
 
-// After a restock the property is back at its minimum.
-export async function markRestocked(propertyId: string, itemId: string, par: number) {
+// After a restock the building is back at its minimum.
+export async function markRestocked(building: string, itemId: string, par: number) {
   await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase
-    .from("property_inventory")
-    .update({ quantity: par, counted_at: new Date().toISOString(), counted_by: null, cleaning_id: null })
-    .eq("property_id", propertyId)
-    .eq("item_id", itemId);
+    .from("building_inventory")
+    .upsert(
+      { building, item_id: itemId, quantity: par, counted_at: new Date().toISOString(), counted_by: null },
+      { onConflict: "building,item_id" },
+    );
   if (error) throw error;
   revalidatePath("/admin", "layout");
+}
+
+// Minimums of one building ("par:<item id>" fields; empty = default).
+export async function saveBuildingMinimums(building: string, _: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await requireAdmin();
+    const rows: { building: string; item_id: string; par_level: number | null }[] = [];
+    for (const [key, value] of formData) {
+      if (!key.startsWith("par:") || typeof value !== "string") continue;
+      const par = value.trim() === "" ? null : Number.parseInt(value, 10);
+      if (par !== null && (!Number.isFinite(par) || par < 0)) throw new FormError("Use apenas números inteiros.");
+      rows.push({ building, item_id: key.slice(4), par_level: par });
+    }
+    const supabase = await createClient();
+    const { error } = await supabase.from("building_inventory").upsert(rows, { onConflict: "building,item_id" });
+    if (error) throw error;
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidatePath("/admin", "layout");
+  return { success: "Mínimos salvos." };
 }

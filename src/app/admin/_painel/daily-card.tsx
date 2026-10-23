@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AutoSubmitSelect, SubmitButton } from "@/components/forms";
 import { FlameIcon, StatusBadge } from "@/components/ui";
-import { formatHour, formatHourOf, formatShortDate, nowTime, today } from "@/lib/dates";
+import { formatHour, formatHourOf, nowTime, today } from "@/lib/dates";
 import type { CleaningWithRelations, Profile } from "@/lib/types";
 import { assignCleaner, setReleasedEarly } from "../limpezas/actions";
 import { DateMover } from "./date-mover";
@@ -12,20 +12,16 @@ export function aptTitle(name: string | undefined) {
   return number ? `Apto ${number}` : (name ?? "Imóvel removido");
 }
 
-// "Saída: 11h | Próximo check-in: 15h" (or the next check-in's date when it
-// isn't on the same day).
+// "Saída: 11h | Próximo check-in: 15h": the starting text of the observation.
 export function scheduleLine(cleaning: CleaningWithRelations) {
   const parts = [
     cleaning.guest_departure_time
       ? `Saída: ${formatHour(cleaning.guest_departure_time)} (avisou no chat)`
       : `Saída: ${formatHour(cleaning.starts_at) || "—"}`,
   ];
+  // Only a same-day check-in matters for this cleaning.
   if (cleaning.next_checkin === cleaning.date) {
     parts.push(`Próximo check-in: ${formatHour(cleaning.ends_at) || "hoje"}`);
-  } else if (cleaning.next_checkin) {
-    parts.push(`Próximo check-in: ${formatShortDate(cleaning.next_checkin)}`);
-  } else {
-    parts.push("Sem próximo check-in");
   }
   return parts.join(" | ");
 }
@@ -80,8 +76,7 @@ export function TeamCleaningCard({ cleaning, photos }: { cleaning: CleaningWithR
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
           <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Observações do admin</p>
-          <p>{scheduleLine(cleaning)}</p>
-          {cleaning.notes && <p className="whitespace-pre-line">{cleaning.notes}</p>}
+          <p className="whitespace-pre-line">{cleaning.notes ?? scheduleLine(cleaning)}</p>
         </div>
       </div>
       <StatusBadge status={cleaning.status} />
@@ -141,8 +136,8 @@ export function DailyCleaningCard({
         )}
       </div>
 
-      <p className="text-sm text-slate-700">{scheduleLine(cleaning)}</p>
-      <NotesBox cleaningId={cleaning.id} initial={cleaning.notes ?? ""} />
+      {/* The observation starts with the schedule; the admin edits it freely. */}
+      <NotesBox cleaningId={cleaning.id} initial={cleaning.notes ?? scheduleLine(cleaning)} />
     </div>
   );
 }

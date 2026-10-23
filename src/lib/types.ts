@@ -119,7 +119,7 @@ export const ISSUE_CATEGORY_LABELS: Record<IssueCategory, string> = {
   maintenance: "Manutenção (não funciona)",
   missing_item: "Item faltando",
   dirty: "Sujeira fora do normal",
-  forgotten_item: "Objeto esquecido pelo hóspede",
+  forgotten_item: "Item esquecido",
   other: "Outro",
 };
 
