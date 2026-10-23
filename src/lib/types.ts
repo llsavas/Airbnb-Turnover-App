@@ -44,6 +44,8 @@ export type Cleaning = {
   started_at: string | null;
   completed_at: string | null;
   released_at: string | null;
+  // Time the guest said in the chat they'll leave (earlier than checkout).
+  guest_departure_time: string | null;
 };
 
 export type CleaningWithRelations = Cleaning & {

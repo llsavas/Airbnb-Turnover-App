@@ -1,4 +1,4 @@
-import { extractCheckinDetails, syncHospitable } from "@/lib/hospitable";
+import { extractCheckinDetails, extractDepartureTimes, syncHospitable } from "@/lib/hospitable";
 
 // Fetching reservations for every property can take a while.
 export const maxDuration = 300;
@@ -13,7 +13,8 @@ export async function GET(request: Request) {
   try {
     const cleanings = await syncHospitable();
     const checkins = await extractCheckinDetails();
-    return Response.json({ ...cleanings, checkins });
+    const departures = await extractDepartureTimes();
+    return Response.json({ ...cleanings, checkins, departures });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : String(error) },

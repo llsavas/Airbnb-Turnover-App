@@ -4,14 +4,21 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { toFormState, type FormState } from "@/lib/form";
 import { createClient } from "@/lib/supabase/server";
-import { extractCheckinDetails, importHospitableProperties, syncHospitable } from "@/lib/hospitable";
+import {
+  extractCheckinDetails,
+  extractDepartureTimes,
+  importHospitableProperties,
+  syncHospitable,
+} from "@/lib/hospitable";
 
 export async function syncNow(): Promise<FormState> {
   let message: string;
   try {
     await requireAdmin();
     const { created, updated, cancelled } = await syncHospitable();
+    const departures = await extractDepartureTimes();
     message = `Sincronizado: ${created} novas, ${updated} atualizadas, ${cancelled} canceladas.`;
+    if (departures) message += ` ${departures} hóspede(s) avisaram saída mais cedo.`;
   } catch (error) {
     if (error instanceof Error) return { error: error.message };
     return toFormState(error);

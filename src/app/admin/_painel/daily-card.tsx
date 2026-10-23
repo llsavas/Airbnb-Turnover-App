@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AutoSubmitSelect, SubmitButton } from "@/components/forms";
 import { FlameIcon, StatusBadge } from "@/components/ui";
-import { formatHour, formatHourOf, formatShortDate } from "@/lib/dates";
+import { formatHour, formatHourOf, formatShortDate, nowTime, today } from "@/lib/dates";
 import type { CleaningWithRelations, Profile } from "@/lib/types";
 import { assignCleaner, setReleasedEarly } from "../limpezas/actions";
 import { DateMover } from "./date-mover";
@@ -15,7 +15,11 @@ export function aptTitle(name: string | undefined) {
 // "Saída: 11h | Próximo check-in: 15h" (or the next check-in's date when it
 // isn't on the same day).
 export function scheduleLine(cleaning: CleaningWithRelations) {
-  const parts = [`Saída: ${formatHour(cleaning.starts_at) || "—"}`];
+  const parts = [
+    cleaning.guest_departure_time
+      ? `Saída: ${formatHour(cleaning.guest_departure_time)} (avisou no chat)`
+      : `Saída: ${formatHour(cleaning.starts_at) || "—"}`,
+  ];
   if (cleaning.next_checkin === cleaning.date) {
     parts.push(`Próximo check-in: ${formatHour(cleaning.ends_at) || "hoje"}`);
   } else if (cleaning.next_checkin) {
@@ -26,9 +30,20 @@ export function scheduleLine(cleaning: CleaningWithRelations) {
   return parts.join(" | ");
 }
 
+// Released by the admin ("Liberar mais cedo"), or automatically once the time
+// the guest announced for leaving has passed on the cleaning day.
+export function releaseText(cleaning: CleaningWithRelations): string | null {
+  if (cleaning.status !== "scheduled") return null;
+  if (cleaning.released_at) return `Liberado às ${formatHourOf(cleaning.released_at)}`;
+  const said = cleaning.guest_departure_time?.slice(0, 5);
+  if (!said || cleaning.date !== today()) return null;
+  return nowTime() >= said ? `Liberado às ${formatHour(said)} (hóspede saiu)` : `Hóspede sai às ${formatHour(said)}`;
+}
+
 function Badges({ cleaning }: { cleaning: CleaningWithRelations }) {
   const sameDay = cleaning.next_checkin === cleaning.date;
-  if (!sameDay && !cleaning.released_at) return null;
+  const release = releaseText(cleaning);
+  if (!sameDay && !release) return null;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {sameDay && (
@@ -36,9 +51,9 @@ function Badges({ cleaning }: { cleaning: CleaningWithRelations }) {
           <FlameIcon /> Entrada no mesmo dia
         </span>
       )}
-      {cleaning.released_at && cleaning.status === "scheduled" && (
+      {release && (
         <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-          Liberado às {formatHourOf(cleaning.released_at)}
+          {release}
         </span>
       )}
     </div>

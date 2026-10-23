@@ -142,3 +142,13 @@ export async function countPhotos(cleaningIds: string[]): Promise<Map<string, nu
   for (const i of issues ?? []) counts.set(i.cleaning_id, (counts.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
   return counts;
 }
+
+// Buildings with how many active apartments each has, for the building picker.
+export async function listBuildingCounts(): Promise<{ name: string; count: number }[]> {
+  const properties = await listProperties();
+  const counts = new Map<string, number>();
+  for (const p of properties) if (p.building) counts.set(p.building, (counts.get(p.building) ?? 0) + 1);
+  return [...counts]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}

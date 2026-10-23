@@ -100,3 +100,13 @@ export function formatHourOf(iso: string): string {
   }).format(new Date(iso));
   return formatHour(time);
 }
+
+// Current time of day in the business time zone, "HH:MM".
+export function nowTime(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: TIME_ZONE,
+  }).format(new Date());
+}

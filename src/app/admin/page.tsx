@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Card, PageHeader, Select, buttonClass } from "@/components/ui";
-import { NO_BUILDING, buildingNames } from "@/lib/buildings";
-import { listCleanings, listIssues, listLowStock, listProperties } from "@/lib/data";
+import { Card, PageHeader, buttonClass } from "@/components/ui";
+import { BuildingPicker } from "@/components/building-picker";
+import { requireAdmin } from "@/lib/auth";
+import { listBuildingCounts, listCleanings, listIssues, listLowStock } from "@/lib/data";
 import { addDays, formatDateTime, isValidDate, isValidMonth, today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import type { SyncRun } from "@/lib/types";
@@ -36,20 +37,22 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
   const params = await searchParams;
   const param = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
   const tab: Tab = TABS.some((t) => t.id === param("aba")) ? (param("aba") as Tab) : "diario";
-  const building = param("predio");
+  // The admin's own building selection (shared with the Equipe mode).
+  const profile = await requireAdmin();
+  const buildings = profile.buildings;
   const date = isValidDate(param("dia")) ? param("dia") : today();
   const month = isValidMonth(param("mes")) ? param("mes") : date.slice(0, 7);
 
   // Keeps the current tab, building and date when switching any one of them.
   const link = (changes: Record<string, string>) => {
-    const next = new URLSearchParams({ aba: tab, predio: building, dia: date, mes: month, ...changes });
+    const next = new URLSearchParams({ aba: tab, dia: date, mes: month, ...changes });
     for (const [k, v] of [...next.entries()]) if (!v) next.delete(k);
     return `/admin?${next}`;
   };
 
   const supabase = await createClient();
-  const [properties, openIssues, lowStock, upcoming, { data: lastSync }] = await Promise.all([
-    listProperties(),
+  const [buildingCounts, openIssues, lowStock, upcoming, { data: lastSync }] = await Promise.all([
+    listBuildingCounts(),
     listIssues("open"),
     listLowStock(),
     listCleanings({ from: today(), to: addDays(today(), 1), cleanerId: "none" }),
@@ -106,25 +109,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
             </Link>
           ))}
         </nav>
-        <form className="flex gap-2">
-          <input type="hidden" name="aba" value={tab} />
-          <input type="hidden" name="dia" value={date} />
-          <input type="hidden" name="mes" value={month} />
-          <Select name="predio" defaultValue={building} aria-label="Prédio" className="w-auto">
-            <option value="">Todos os prédios</option>
-            {[...buildingNames(properties), NO_BUILDING].map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </Select>
-          <button className={buttonClass("secondary")}>Filtrar</button>
-        </form>
+        <BuildingPicker buildings={buildingCounts} selected={buildings} />
       </div>
 
-      {tab === "diario" && <DailyView date={date} buildings={building ? [building] : []} link={link} mode="admin" />}
-      {tab === "mensal" && <MonthlyView month={month} buildings={building ? [building] : []} link={link} />}
-      {tab === "checkins" && <CheckinsView building={building} />}
+      {tab === "diario" && <DailyView date={date} buildings={buildings} link={link} mode="admin" />}
+      {tab === "mensal" && <MonthlyView month={month} buildings={buildings} link={link} />}
+      {tab === "checkins" && <CheckinsView buildings={buildings} />}
 
       <Card className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm">

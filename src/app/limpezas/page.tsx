@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { BuildingPicker } from "@/components/building-picker";
 import { requireUser } from "@/lib/auth";
+import { listBuildingCounts } from "@/lib/data";
 import { isValidDate, isValidMonth, today } from "@/lib/dates";
 import { DailyView } from "../admin/_painel/daily";
 import { MonthlyView } from "../admin/_painel/monthly";
@@ -16,7 +17,6 @@ const TABS = [
 // The team app: every cleaning of the buildings this person works in.
 export default async function TeamCleaningsPage({ searchParams }: PageProps<"/limpezas">) {
   const profile = await requireUser();
-  if (profile.buildings.length === 0) redirect("/limpezas/predios");
 
   const params = await searchParams;
   const param = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
@@ -45,13 +45,7 @@ export default async function TeamCleaningsPage({ searchParams }: PageProps<"/li
             </Link>
           ))}
         </nav>
-        <Link
-          href="/limpezas/predios"
-          className="flex items-center gap-1.5 rounded-xl bg-surface px-3 py-2 text-sm font-medium ring-1 ring-slate-200 hover:bg-slate-50"
-          title={profile.buildings.join(", ")}
-        >
-          🏢 {profile.buildings.length === 1 ? profile.buildings[0] : `${profile.buildings.length} prédios`} ▾
-        </Link>
+        <BuildingPicker buildings={await listBuildingCounts()} selected={profile.buildings} />
       </div>
 
       {tab === "diario" ? (

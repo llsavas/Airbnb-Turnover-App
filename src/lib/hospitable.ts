@@ -1,5 +1,10 @@
 import "server-only";
-import { readGuestDetails, readGuestDetailsByPattern, type GuestDetails } from "@/lib/checkin-ai";
+import {
+  readDepartureTime,
+  readGuestDetails,
+  readGuestDetailsByPattern,
+  type GuestDetails,
+} from "@/lib/checkin-ai";
 import { addDays, today } from "@/lib/dates";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -301,4 +306,43 @@ export async function extractCheckinDetails(
     );
   }
   return { read, aiError };
+}
+
+// Reads the chat of today's and tomorrow's departures for the time the guest
+// said they'll leave. Only times earlier than the normal checkout are kept:
+// that is what lets the cleaning start sooner.
+export async function extractDepartureTimes(): Promise<number> {
+  const supabase = createAdminClient();
+  const from = today();
+  const { data: cleanings, error } = await supabase
+    .from("cleanings")
+    .select("id, external_id, starts_at")
+    .eq("source", "hospitable")
+    .eq("status", "scheduled")
+    .gte("date", from)
+    .lte("date", addDays(from, 1));
+  if (error) throw error;
+
+  let found = 0;
+  for (let i = 0; i < cleanings.length; i += 4) {
+    await Promise.all(
+      cleanings.slice(i, i + 4).map(async (cleaning) => {
+        const res = await fetch(`${API_URL}/reservations/${cleaning.external_id}/messages`, {
+          headers: { Authorization: `Bearer ${token()}`, Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const { data: messages } = (await res.json()) as { data: HospitableMessage[] };
+        const said = await readDepartureTime(messages);
+        const earlier = said && cleaning.starts_at && said < cleaning.starts_at.slice(0, 5) ? said : null;
+        if (earlier) found++;
+        const { error: updateError } = await supabase
+          .from("cleanings")
+          .update({ guest_departure_time: earlier, departure_read_at: new Date().toISOString() })
+          .eq("id", cleaning.id);
+        if (updateError) throw updateError;
+      }),
+    );
+  }
+  return found;
 }

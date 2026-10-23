@@ -1,6 +1,6 @@
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, EmptyState } from "@/components/ui";
-import { NO_BUILDING, aptLabel, groupByBuilding } from "@/lib/buildings";
+import { aptLabel, groupByBuilding, inBuildings } from "@/lib/buildings";
 import { addDays, formatDayShort, formatHour, formatShortDate, today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import type { CheckinWithProperty } from "@/lib/types";
@@ -78,7 +78,7 @@ function CheckinItem({ checkin }: { checkin: CheckinWithProperty }) {
   );
 }
 
-export async function CheckinsView({ building }: { building: string }) {
+export async function CheckinsView({ buildings }: { buildings: string[] }) {
   const from = today();
   const to = addDays(from, DAYS_AHEAD);
   const supabase = await createClient();
@@ -91,7 +91,7 @@ export async function CheckinsView({ building }: { building: string }) {
     .order("checkin_date")
     .order("checkin_time");
   const checkins = ((data ?? []) as CheckinWithProperty[]).filter(
-    (c) => !building || (c.property?.building ?? NO_BUILDING) === building,
+    (c) => inBuildings(buildings, c.property?.building),
   );
   const registered = checkins.filter((c) => c.registered).length;
   const days = Array.from({ length: DAYS_AHEAD + 1 }, (_, i) => addDays(from, i));

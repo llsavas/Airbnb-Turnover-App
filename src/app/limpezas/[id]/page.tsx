@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, FlameIcon, Input, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { formatDateTime, formatDayShort, formatHourOf } from "@/lib/dates";
+import { formatDateTime, formatDayShort } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -18,7 +18,7 @@ import {
   type PropertyLinen,
   type ReferencePhoto,
 } from "@/lib/types";
-import { aptTitle, scheduleLine } from "../../admin/_painel/daily-card";
+import { aptTitle, releaseText, scheduleLine } from "../../admin/_painel/daily-card";
 import { completeCleaning, saveInventory, startCleaning } from "../actions";
 import { Checklist } from "./checklist";
 import { IssueForm } from "./issue-form";
@@ -111,9 +111,9 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
               <FlameIcon /> Check-in no mesmo dia
             </span>
           )}
-          {cleaning.released_at && cleaning.status === "scheduled" && (
+          {releaseText(cleaning) && (
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-emerald-200">
-              Liberado às {formatHourOf(cleaning.released_at)}: pode começar
+              {releaseText(cleaning)}
             </span>
           )}
           {cleaning.started_at && (
