@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CleaningWithRelations,
@@ -143,26 +144,32 @@ export async function listMaintenances(filters: {
   return data as MaintenanceWithProperty[];
 }
 
-// Photos taken per cleaning so far: checklist photos plus problem reports.
-export async function countPhotos(cleaningIds: string[]): Promise<Map<string, number>> {
+// Photos taken so far per cleaning of a day: checklist photos plus problem
+// reports. Looked up by date so it runs alongside the cleanings query.
+export async function countPhotosForDate(date: string): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
-  if (cleaningIds.length === 0) return counts;
   const supabase = await createClient();
   const [{ data: tasks }, { data: issues }] = await Promise.all([
-    supabase.from("cleaning_tasks").select("cleaning_id").in("cleaning_id", cleaningIds).not("photo_path", "is", null),
-    supabase.from("issues").select("cleaning_id, photo_paths").in("cleaning_id", cleaningIds),
+    supabase
+      .from("cleaning_tasks")
+      .select("cleaning_id, cleanings!inner(date)")
+      .eq("cleanings.date", date)
+      .not("photo_path", "is", null),
+    supabase.from("issues").select("cleaning_id, photo_paths, cleanings!inner(date)").eq("cleanings.date", date),
   ]);
   for (const t of tasks ?? []) counts.set(t.cleaning_id, (counts.get(t.cleaning_id) ?? 0) + 1);
-  for (const i of issues ?? []) counts.set(i.cleaning_id, (counts.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
+  for (const i of issues ?? []) {
+    if (i.cleaning_id) counts.set(i.cleaning_id, (counts.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
+  }
   return counts;
 }
 
 // Buildings with how many active apartments each has, for the building picker.
-export async function listBuildingCounts(): Promise<{ name: string; count: number }[]> {
+export const listBuildingCounts = cache(async (): Promise<{ name: string; count: number }[]> => {
   const properties = await listProperties();
   const counts = new Map<string, number>();
   for (const p of properties) if (p.building) counts.set(p.building, (counts.get(p.building) ?? 0) + 1);
   return [...counts]
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-}
+});

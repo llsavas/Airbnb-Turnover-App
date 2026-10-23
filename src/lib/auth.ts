@@ -7,15 +7,16 @@ import type { Profile } from "@/lib/types";
 // Reads the signed-in user's profile once per request.
 export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // Verified locally from the signed token (no round trip to the Auth
+  // server); deactivated people are still blocked by "active" below.
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims.sub;
+  if (!userId) return null;
 
   const { data } = await supabase
     .from("profiles")
     .select("id, full_name, phone, role, active, buildings")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
   return data;
 });

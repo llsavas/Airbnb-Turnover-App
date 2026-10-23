@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, PageHeader, buttonClass } from "@/components/ui";
 import { BuildingPicker } from "@/components/building-picker";
+import { DayViewSkeleton } from "@/components/skeletons";
 import { requireAdmin } from "@/lib/auth";
 import { listBuildingCounts, listCleanings, listIssues, listLowStock } from "@/lib/data";
 import { addDays, formatDateTime, isValidDate, isValidMonth, today } from "@/lib/dates";
@@ -33,6 +35,70 @@ function Alert({ href, count, label, tone }: { href: string; count: number; labe
   );
 }
 
+// The page shell renders at once; these parts stream in as their data arrives.
+async function Alerts() {
+  const [openIssues, lowStock, upcoming] = await Promise.all([
+    listIssues("open"),
+    listLowStock(),
+    listCleanings({ from: today(), to: addDays(today(), 1), cleanerId: "none" }),
+  ]);
+  const urgentIssues = openIssues.filter((i) => i.urgency === "urgent").length;
+  const unassigned = upcoming.filter((c) => c.status === "scheduled").length;
+  return (
+    <div className="mb-4 flex min-h-7 flex-wrap gap-2">
+      <Alert
+        href="/admin/limpezas?pessoa=none"
+        count={unassigned}
+        label="sem responsável (hoje e amanhã)"
+        tone="bg-red-50 text-red-700 ring-red-200"
+      />
+      <Alert
+        href="/admin/problemas"
+        count={openIssues.length}
+        label={urgentIssues ? `problemas (${urgentIssues} urgentes)` : "problemas abertos"}
+        tone={urgentIssues ? "bg-red-50 text-red-700 ring-red-200" : "bg-amber-50 text-amber-800 ring-amber-200"}
+      />
+      <Alert
+        href="/admin/estoque"
+        count={lowStock.length}
+        label="itens em falta"
+        tone="bg-amber-50 text-amber-800 ring-amber-200"
+      />
+    </div>
+  );
+}
+
+async function Picker({ selected }: { selected: string[] }) {
+  return <BuildingPicker buildings={await listBuildingCounts()} selected={selected} />;
+}
+
+async function SyncCard() {
+  const supabase = await createClient();
+  const { data: lastSync } = await supabase
+    .from("sync_runs")
+    .select("*")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<SyncRun>();
+  return (
+    <Card className="mt-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="text-sm">
+        <p className="font-semibold">Hospitable</p>
+        <p className="text-slate-500">
+          {!lastSync
+            ? "Ainda não sincronizado."
+            : lastSync.ok === false
+              ? `Falhou em ${formatDateTime(lastSync.started_at)}: ${lastSync.message ?? ""}`
+              : `Última sincronização: ${formatDateTime(lastSync.started_at)}`}
+        </p>
+      </div>
+      <ActionForm action={syncNow}>
+        <SubmitButton variant="secondary">Sincronizar agora</SubmitButton>
+      </ActionForm>
+    </Card>
+  );
+}
+
 export default async function DashboardPage({ searchParams }: PageProps<"/admin">) {
   const params = await searchParams;
   const param = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
@@ -50,22 +116,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
     return `/admin?${next}`;
   };
 
-  const supabase = await createClient();
-  const [buildingCounts, openIssues, lowStock, upcoming, { data: lastSync }] = await Promise.all([
-    listBuildingCounts(),
-    listIssues("open"),
-    listLowStock(),
-    listCleanings({ from: today(), to: addDays(today(), 1), cleanerId: "none" }),
-    supabase
-      .from("sync_runs")
-      .select("*")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<SyncRun>(),
-  ]);
-  const urgentIssues = openIssues.filter((i) => i.urgency === "urgent").length;
-  const unassigned = upcoming.filter((c) => c.status === "scheduled").length;
-
   return (
     <>
       <PageHeader title="Painel">
@@ -74,26 +124,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
         </Link>
       </PageHeader>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Alert
-          href="/admin/limpezas?pessoa=none"
-          count={unassigned}
-          label="sem responsável (hoje e amanhã)"
-          tone="bg-red-50 text-red-700 ring-red-200"
-        />
-        <Alert
-          href="/admin/problemas"
-          count={openIssues.length}
-          label={urgentIssues ? `problemas (${urgentIssues} urgentes)` : "problemas abertos"}
-          tone={urgentIssues ? "bg-red-50 text-red-700 ring-red-200" : "bg-amber-50 text-amber-800 ring-amber-200"}
-        />
-        <Alert
-          href="/admin/estoque"
-          count={lowStock.length}
-          label="itens em falta"
-          tone="bg-amber-50 text-amber-800 ring-amber-200"
-        />
-      </div>
+      <Suspense fallback={<div className="mb-4 h-7" />}>
+        <Alerts />
+      </Suspense>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <nav className="flex rounded-xl bg-surface p-1 ring-1 ring-slate-200">
@@ -109,28 +142,21 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
             </Link>
           ))}
         </nav>
-        <BuildingPicker buildings={buildingCounts} selected={buildings} />
+        <Suspense fallback={<div className="h-10 w-36 animate-pulse rounded-xl bg-slate-200" />}>
+          <Picker selected={buildings} />
+        </Suspense>
       </div>
 
-      {tab === "diario" && <DailyView date={date} buildings={buildings} link={link} mode="admin" />}
-      {tab === "mensal" && <MonthlyView month={month} buildings={buildings} link={link} />}
-      {tab === "checkins" && <CheckinsView buildings={buildings} />}
+      {/* Keyed by what's shown, so switching tab or day shows the skeleton. */}
+      <Suspense key={`${tab}|${date}|${month}`} fallback={<DayViewSkeleton />}>
+        {tab === "diario" && <DailyView date={date} buildings={buildings} link={link} mode="admin" />}
+        {tab === "mensal" && <MonthlyView month={month} buildings={buildings} link={link} />}
+        {tab === "checkins" && <CheckinsView buildings={buildings} />}
+      </Suspense>
 
-      <Card className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm">
-          <p className="font-semibold">Hospitable</p>
-          <p className="text-slate-500">
-            {!lastSync
-              ? "Ainda não sincronizado."
-              : lastSync.ok === false
-                ? `Falhou em ${formatDateTime(lastSync.started_at)}: ${lastSync.message ?? ""}`
-                : `Última sincronização: ${formatDateTime(lastSync.started_at)}`}
-          </p>
-        </div>
-        <ActionForm action={syncNow}>
-          <SubmitButton variant="secondary">Sincronizar agora</SubmitButton>
-        </ActionForm>
-      </Card>
+      <Suspense fallback={null}>
+        <SyncCard />
+      </Suspense>
     </>
   );
 }

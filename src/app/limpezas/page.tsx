@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { BuildingPicker } from "@/components/building-picker";
+import { DayViewSkeleton } from "@/components/skeletons";
 import { requireUser } from "@/lib/auth";
 import { listBuildingCounts } from "@/lib/data";
 import { isValidDate, isValidMonth, today } from "@/lib/dates";
@@ -13,6 +15,10 @@ const TABS = [
   { id: "diario", label: "Diário" },
   { id: "mensal", label: "Mensal" },
 ] as const;
+
+async function Picker({ selected }: { selected: string[] }) {
+  return <BuildingPicker buildings={await listBuildingCounts()} selected={selected} />;
+}
 
 // The team app: every cleaning of the buildings this person works in.
 export default async function TeamCleaningsPage({ searchParams }: PageProps<"/limpezas">) {
@@ -45,14 +51,19 @@ export default async function TeamCleaningsPage({ searchParams }: PageProps<"/li
             </Link>
           ))}
         </nav>
-        <BuildingPicker buildings={await listBuildingCounts()} selected={profile.buildings} />
+        <Suspense fallback={<div className="h-10 w-36 animate-pulse rounded-xl bg-slate-200" />}>
+          <Picker selected={profile.buildings} />
+        </Suspense>
       </div>
 
-      {tab === "diario" ? (
-        <DailyView date={date} buildings={profile.buildings} link={link} mode="team" />
-      ) : (
-        <MonthlyView month={month} buildings={profile.buildings} link={link} />
-      )}
+      {/* Keyed by what's shown, so switching tab or day shows the skeleton. */}
+      <Suspense key={`${tab}|${date}|${month}`} fallback={<DayViewSkeleton />}>
+        {tab === "diario" ? (
+          <DailyView date={date} buildings={profile.buildings} link={link} mode="team" />
+        ) : (
+          <MonthlyView month={month} buildings={profile.buildings} link={link} />
+        )}
+      </Suspense>
     </div>
   );
 }

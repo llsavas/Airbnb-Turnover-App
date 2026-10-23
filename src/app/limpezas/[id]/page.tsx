@@ -28,47 +28,43 @@ export const metadata: Metadata = { title: "Limpeza" };
 export const maxDuration = 60;
 
 type CleaningDetail = CleaningWithRelations & {
-  property: (Property & { building: string | null }) | null;
+  property:
+    | (Property & {
+        building: string | null;
+        standard: { notes: string | null } | null;
+        linens: PropertyLinen[];
+        ref_photos: ReferencePhoto[];
+      })
+    | null;
 };
 
 export default async function CleaningDetailPage({ params, searchParams }: PageProps<"/limpezas/[id]">) {
-  const profile = await requireUser();
-  const { id } = await params;
-  const { de } = await searchParams;
+  const [{ id }, { de }] = await Promise.all([params, searchParams]);
   const supabase = await createClient();
-  const { data: cleaning } = await supabase
-    .from("cleanings")
-    .select("*, property:properties(*), cleaner:profiles!cleanings_cleaner_id_fkey(id, full_name)")
-    .eq("id", id)
-    .maybeSingle<CleaningDetail>();
+  // Everything in one go: the cleaning with its apartment's standard, plus
+  // its checklist and problems.
+  const [profile, { data: cleaning }, { data: tasks }, { data: issues }] = await Promise.all([
+    requireUser(),
+    supabase
+      .from("cleanings")
+      .select(
+        "*, cleaner:profiles!cleanings_cleaner_id_fkey(id, full_name), property:properties(*, standard:property_standards(notes), linens:property_linens(*), ref_photos:property_reference_photos(*))",
+      )
+      .eq("id", id)
+      .maybeSingle<CleaningDetail>(),
+    supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
+    supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
+  ]);
   if (!cleaning) notFound();
 
   const fromAdmin = de === "admin" && profile.role === "admin";
   const back = fromAdmin ? `/admin?dia=${cleaning.date}` : `/limpezas?dia=${cleaning.date}`;
+  const standard = cleaning.property?.standard;
+  const byPosition = <T extends { position: number }>(rows: T[] | undefined) =>
+    [...(rows ?? [])].sort((a, b) => a.position - b.position);
+  const linens = byPosition(cleaning.property?.linens);
+  const refPhotos = byPosition(cleaning.property?.ref_photos);
 
-  const [
-    { data: tasks },
-    { data: issues },
-    { data: standard },
-    { data: linens },
-    { data: refPhotos },
-  ] = await Promise.all([
-    supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
-    supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
-    supabase.from("property_standards").select("notes").eq("property_id", cleaning.property_id).maybeSingle(),
-    supabase
-      .from("property_linens")
-      .select("*")
-      .eq("property_id", cleaning.property_id)
-      .order("position")
-      .overrideTypes<PropertyLinen[], { merge: false }>(),
-    supabase
-      .from("property_reference_photos")
-      .select("*")
-      .eq("property_id", cleaning.property_id)
-      .order("position")
-      .overrideTypes<ReferencePhoto[], { merge: false }>(),
-  ]);
   const photoUrls = await signedPhotoUrls([
     ...(tasks ?? []).map((t) => t.photo_path),
     ...(refPhotos ?? []).map((p) => p.path),

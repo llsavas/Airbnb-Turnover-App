@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState, FlameIcon } from "@/components/ui";
 import { aptLabel, groupByBuilding, inBuildings } from "@/lib/buildings";
-import { countPhotos, listBuildingStock, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
+import { countPhotosForDate, listBuildingStock, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
 import { BuildingAccordion, UrgentBadge } from "./building-accordion";
 import { BuildingStockForm } from "./building-stock";
@@ -20,17 +20,17 @@ export async function DailyView({
   link: (params: Record<string, string>) => string;
   mode: "admin" | "team";
 }) {
-  const [allCleanings, cleaners, allMaintenances, stock] = await Promise.all([
+  const [allCleanings, cleaners, allMaintenances, stock, photos] = await Promise.all([
     listCleanings({ from: date, to: date }),
     mode === "admin" ? listCleaners() : Promise.resolve([]),
     mode === "admin" ? listMaintenances({ from: date, to: date, status: "scheduled" }) : Promise.resolve([]),
     // The team counts each building's stock from its block.
     mode === "team" ? listBuildingStock() : Promise.resolve([]),
+    countPhotosForDate(date),
   ]);
   const stockOf = new Map(stock.map((s) => [s.building, s]));
   const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuildings(buildings, c.property?.building));
   const maintenances = allMaintenances.filter((m) => inBuildings(buildings, m.property?.building));
-  const photos = await countPhotos(cleanings.map((c) => c.id));
 
   const sameDay = (c: (typeof cleanings)[number]) => c.next_checkin === c.date;
   const done = cleanings.filter((c) => c.status === "completed").length;

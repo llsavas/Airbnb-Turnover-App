@@ -28,9 +28,11 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims verifies the session token locally (the project signs tokens
+  // with an asymmetric key), refreshing it when needed, instead of asking the
+  // Auth server on every request.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims.sub;
 
   const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
   if (!user && !isPublic) {
