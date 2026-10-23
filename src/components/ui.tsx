@@ -99,3 +99,12 @@ export function EmptyState({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+// Marks same-day check-ins ("entrada no mesmo dia").
+export function FlameIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5" aria-hidden>
+      <path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.6 2.5 3-.5-3 0-5.5.5-8.5z" />
+    </svg>
+  );
+}

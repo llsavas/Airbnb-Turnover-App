@@ -1,19 +1,13 @@
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, EmptyState } from "@/components/ui";
 import { NO_BUILDING, aptLabel, groupByBuilding } from "@/lib/buildings";
-import { addDays, formatDayShort, formatShortDate, formatTime, today } from "@/lib/dates";
+import { addDays, formatDayShort, formatHour, formatShortDate, today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import type { CheckinWithProperty } from "@/lib/types";
 import { setCheckinRegistered, syncCheckins } from "../actions";
 import { BuildingAccordion } from "./building-accordion";
 
 const DAYS_AHEAD = 3;
-
-// "15:00" → "15h", "15:30" → "15h30"
-function hour(time: string) {
-  const [h, m] = formatTime(time).split(":");
-  return `${Number(h)}h${m === "00" ? "" : m}`;
-}
 
 // One line per guest ("Nome | CPF: 000.000.000-00"), then arrival and plate:
 // the format the front desk receives.
@@ -40,7 +34,7 @@ function Notes({ checkin }: { checkin: CheckinWithProperty }) {
         Chegada:{" "}
         {checkin.arrival_time ?? (
           <span className="text-slate-500">
-            não informada{checkin.checkin_time && ` (check-in a partir das ${hour(checkin.checkin_time)})`}
+            não informada{checkin.checkin_time && ` (check-in a partir das ${formatHour(checkin.checkin_time)})`}
           </span>
         )}
       </p>

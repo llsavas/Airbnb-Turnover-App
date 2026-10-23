@@ -83,3 +83,20 @@ export function daysInMonth(month: string): number {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
+
+// "15:00" → "15h", "15:30" → "15h30"
+export function formatHour(time: string | null): string {
+  if (!time) return "";
+  const [h, m] = time.slice(0, 5).split(":");
+  return `${Number(h)}h${m === "00" ? "" : m}`;
+}
+
+// Time of day of a timestamp in the business time zone, as "9h40".
+export function formatHourOf(iso: string): string {
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TIME_ZONE,
+  }).format(new Date(iso));
+  return formatHour(time);
+}

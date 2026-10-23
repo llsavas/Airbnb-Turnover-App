@@ -1,0 +1,100 @@
+import Link from "next/link";
+import { AutoSubmitSelect, SubmitButton } from "@/components/forms";
+import { FlameIcon, StatusBadge, buttonClass } from "@/components/ui";
+import { formatHour, formatHourOf, formatShortDate } from "@/lib/dates";
+import type { CleaningWithRelations, Profile } from "@/lib/types";
+import { assignCleaner, setReleasedEarly } from "../limpezas/actions";
+import { NotesBox } from "./notes-box";
+
+function aptTitle(name: string | undefined) {
+  const number = name?.match(/^\d+/)?.[0];
+  return number ? `Apto ${number}` : (name ?? "Imóvel removido");
+}
+
+// "Saída: 11h | Próximo check-in: 15h" (or the next check-in's date when it
+// isn't on the same day).
+export function scheduleLine(cleaning: CleaningWithRelations) {
+  const parts = [`Saída: ${formatHour(cleaning.starts_at) || "—"}`];
+  if (cleaning.next_checkin === cleaning.date) {
+    parts.push(`Próximo check-in: ${formatHour(cleaning.ends_at) || "hoje"}`);
+  } else if (cleaning.next_checkin) {
+    parts.push(`Próximo check-in: ${formatShortDate(cleaning.next_checkin)}`);
+  } else {
+    parts.push("Sem próximo check-in");
+  }
+  return parts.join(" | ");
+}
+
+export function DailyCleaningCard({
+  cleaning,
+  cleaners,
+  photos,
+}: {
+  cleaning: CleaningWithRelations;
+  cleaners: Profile[];
+  photos: number;
+}) {
+  const sameDay = cleaning.next_checkin === cleaning.date;
+  const open = cleaning.status === "scheduled" || cleaning.status === "in_progress";
+
+  return (
+    <div
+      className={`space-y-3 rounded-xl bg-surface p-4 ring-1 ${
+        sameDay && open ? "ring-2 ring-red-700" : "ring-slate-200"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link href={`/admin/limpezas/${cleaning.id}`} className="font-semibold hover:underline">
+            {aptTitle(cleaning.property?.name)}
+          </Link>
+          <p className="text-xs text-slate-500">
+            {cleaning.cleaner?.full_name ?? "Sem responsável"} · {photos} foto(s)
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {sameDay && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+                <FlameIcon /> Entrada no mesmo dia
+              </span>
+            )}
+            {cleaning.released_at && (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                Liberado às {formatHourOf(cleaning.released_at)}
+              </span>
+            )}
+          </div>
+        </div>
+        <StatusBadge status={cleaning.status} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+        {open ? (
+          <form action={assignCleaner.bind(null, cleaning.id)} className="w-full sm:w-auto">
+            <AutoSubmitSelect
+              name="cleaner_id"
+              defaultValue={cleaning.cleaner_id ?? ""}
+              placeholder="Sem responsável"
+              ariaLabel={`Responsável por ${cleaning.property?.name ?? "limpeza"}`}
+              options={cleaners.map((c) => ({ value: c.id, label: c.full_name }))}
+            />
+          </form>
+        ) : (
+          <span className="text-sm text-slate-600">{cleaning.cleaner?.full_name ?? "—"}</span>
+        )}
+        <Link href={`/admin/limpezas/${cleaning.id}`} className={buttonClass("secondary", "px-3 py-1.5 text-xs")}>
+          Editar data de limpeza
+        </Link>
+        {cleaning.status === "scheduled" && (
+          <form action={setReleasedEarly.bind(null, cleaning.id, !cleaning.released_at)}>
+            <SubmitButton variant="secondary" className="px-3 py-1.5 text-xs">
+              {cleaning.released_at ? "Desfazer liberação" : "Liberar mais cedo"}
+            </SubmitButton>
+          </form>
+        )}
+      </div>
+
+      <p className="text-sm text-slate-700">{scheduleLine(cleaning)}</p>
+      <NotesBox cleaningId={cleaning.id} initial={cleaning.notes ?? ""} />
+    </div>
+  );
+}

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/forms";
-import { Card, Input, StatusBadge } from "@/components/ui";
-import { formatDateTime, formatDay, formatShortDate, formatTime } from "@/lib/dates";
+import { Card, FlameIcon, Input, StatusBadge } from "@/components/ui";
+import { formatDateTime, formatDay, formatHourOf, formatShortDate, formatTime } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -95,8 +95,20 @@ export default async function CleaningDetailPage({ params }: PageProps<"/limpeza
             )}
           </Info>
         )}
+        {cleaning.released_at && cleaning.status === "scheduled" && (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
+            O hóspede já saiu: liberado às {formatHourOf(cleaning.released_at)}, pode começar.
+          </p>
+        )}
+        {cleaning.next_checkin === cleaning.date && cleaning.status !== "completed" && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-red-200">
+            <FlameIcon /> Entrada no mesmo dia: precisa estar pronto até {formatTime(cleaning.ends_at) || "o check-in"}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-4">
-          <Info label="Liberado a partir de">{formatTime(cleaning.starts_at) || "—"}</Info>
+          <Info label="Liberado a partir de">
+            {cleaning.released_at ? formatHourOf(cleaning.released_at) : formatTime(cleaning.starts_at) || "—"}
+          </Info>
           <Info label="Pronto até">{formatTime(cleaning.ends_at) || "—"}</Info>
         </div>
         {(cleaning.next_checkin || cleaning.guest_count) && (

@@ -3,8 +3,10 @@ import { Card, EmptyState } from "@/components/ui";
 import { NO_BUILDING, aptLabel, groupByBuilding } from "@/lib/buildings";
 import { listCleaners, listCleanings, listMaintenances } from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
-import { CleaningRow } from "../limpezas/cleaning-row";
-import { BuildingAccordion, FlameIcon, UrgentBadge } from "./building-accordion";
+import { createClient } from "@/lib/supabase/server";
+import { FlameIcon } from "@/components/ui";
+import { BuildingAccordion, UrgentBadge } from "./building-accordion";
+import { DailyCleaningCard } from "./daily-card";
 
 export async function DailyView({
   date,
@@ -23,6 +25,21 @@ export async function DailyView({
   const inBuilding = (b: string | null | undefined) => !building || (b ?? NO_BUILDING) === building;
   const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuilding(c.property?.building));
   const maintenances = allMaintenances.filter((m) => inBuilding(m.property?.building));
+
+  // Photos taken so far: checklist photos plus problem reports.
+  const supabase = await createClient();
+  const ids = cleanings.map((c) => c.id);
+  const [{ data: taskPhotos }, { data: issuePhotos }] = ids.length
+    ? await Promise.all([
+        supabase.from("cleaning_tasks").select("cleaning_id").in("cleaning_id", ids).not("photo_path", "is", null),
+        supabase.from("issues").select("cleaning_id, photo_paths").in("cleaning_id", ids),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const photos = new Map<string, number>();
+  for (const t of taskPhotos ?? []) photos.set(t.cleaning_id, (photos.get(t.cleaning_id) ?? 0) + 1);
+  for (const i of issuePhotos ?? []) {
+    photos.set(i.cleaning_id, (photos.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
+  }
 
   const sameDay = (c: (typeof cleanings)[number]) => c.next_checkin === c.date;
   const done = cleanings.filter((c) => c.status === "completed").length;
@@ -76,9 +93,9 @@ export async function DailyView({
                 doneLabel="concluídas"
                 badge={<UrgentBadge count={items.filter(sameDay).length} singular="entrada" plural="entradas" />}
               >
-                <div className="divide-y divide-slate-100">
+                <div className="space-y-3 p-3">
                   {items.map((c) => (
-                    <CleaningRow key={c.id} cleaning={c} cleaners={cleaners} />
+                    <DailyCleaningCard key={c.id} cleaning={c} cleaners={cleaners} photos={photos.get(c.id) ?? 0} />
                   ))}
                 </div>
               </BuildingAccordion>

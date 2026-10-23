@@ -110,3 +110,32 @@ export async function deleteCleaning(id: string) {
   revalidateCleanings();
   redirect("/admin/limpezas");
 }
+
+// Notes from the Diário card, saved as they're typed. The cleaner sees them.
+export async function saveCleaningNotes(id: string, notes: string): Promise<FormState> {
+  try {
+    await requireAdmin();
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("cleanings")
+      .update({ notes: notes.trim() || null })
+      .eq("id", id);
+    if (error) throw error;
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidatePath("/limpezas", "layout");
+  return null;
+}
+
+// The guest already left: the cleaning can start now.
+export async function setReleasedEarly(id: string, released: boolean) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("cleanings")
+    .update({ released_at: released ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw error;
+  revalidateCleanings();
+}

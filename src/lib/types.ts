@@ -41,6 +41,7 @@ export type Cleaning = {
   notes: string | null;
   started_at: string | null;
   completed_at: string | null;
+  released_at: string | null;
 };
 
 export type CleaningWithRelations = Cleaning & {
