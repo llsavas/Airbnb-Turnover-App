@@ -31,3 +31,8 @@ export function aptLabel(property: { name: string; building: string | null } | n
   if (!number || !property.building) return property.name;
   return `${property.building} · Apto ${number}`;
 }
+
+// Empty selection means every building.
+export function inBuildings(selected: string[], building: string | null | undefined): boolean {
+  return selected.length === 0 || selected.includes(building || NO_BUILDING);
+}

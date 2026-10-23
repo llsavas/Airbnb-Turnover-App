@@ -122,8 +122,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
         </form>
       </div>
 
-      {tab === "diario" && <DailyView date={date} building={building} link={link} />}
-      {tab === "mensal" && <MonthlyView month={month} building={building} link={link} />}
+      {tab === "diario" && <DailyView date={date} buildings={building ? [building] : []} link={link} mode="admin" />}
+      {tab === "mensal" && <MonthlyView month={month} buildings={building ? [building] : []} link={link} />}
       {tab === "checkins" && <CheckinsView building={building} />}
 
       <Card className="mt-8 flex flex-wrap items-center justify-between gap-3">

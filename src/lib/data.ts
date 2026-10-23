@@ -12,13 +12,13 @@ import type {
 } from "@/lib/types";
 
 export const CLEANING_SELECT =
-  "*, property:properties(id, name, building, address, city), cleaner:profiles(id, full_name)";
+  "*, property:properties(id, name, building, address, city), cleaner:profiles!cleanings_cleaner_id_fkey(id, full_name)";
 
 export async function listCleaners({ includeInactive = false } = {}): Promise<Profile[]> {
   const supabase = await createClient();
   let query = supabase
     .from("profiles")
-    .select("id, full_name, phone, role, active")
+    .select("id, full_name, phone, role, active, buildings")
     .eq("role", "cleaner")
     .order("full_name");
   if (!includeInactive) query = query.eq("active", true);
@@ -127,4 +127,18 @@ export async function listMaintenances(filters: {
   const { data, error } = await query;
   if (error) throw error;
   return data as MaintenanceWithProperty[];
+}
+
+// Photos taken per cleaning so far: checklist photos plus problem reports.
+export async function countPhotos(cleaningIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (cleaningIds.length === 0) return counts;
+  const supabase = await createClient();
+  const [{ data: tasks }, { data: issues }] = await Promise.all([
+    supabase.from("cleaning_tasks").select("cleaning_id").in("cleaning_id", cleaningIds).not("photo_path", "is", null),
+    supabase.from("issues").select("cleaning_id, photo_paths").in("cleaning_id", cleaningIds),
+  ]);
+  for (const t of tasks ?? []) counts.set(t.cleaning_id, (counts.get(t.cleaning_id) ?? 0) + 1);
+  for (const i of issues ?? []) counts.set(i.cleaning_id, (counts.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
+  return counts;
 }

@@ -1,45 +1,32 @@
 import Link from "next/link";
-import { Card, EmptyState } from "@/components/ui";
-import { NO_BUILDING, aptLabel, groupByBuilding } from "@/lib/buildings";
-import { listCleaners, listCleanings, listMaintenances } from "@/lib/data";
+import { Card, EmptyState, FlameIcon } from "@/components/ui";
+import { aptLabel, groupByBuilding, inBuildings } from "@/lib/buildings";
+import { countPhotos, listCleaners, listCleanings, listMaintenances } from "@/lib/data";
 import { addDays, formatDay, formatTime, today } from "@/lib/dates";
-import { createClient } from "@/lib/supabase/server";
-import { FlameIcon } from "@/components/ui";
 import { BuildingAccordion, UrgentBadge } from "./building-accordion";
-import { DailyCleaningCard } from "./daily-card";
+import { DailyCleaningCard, TeamCleaningCard } from "./daily-card";
 
+// Diário tab, shared by the admin panel and the team app ("team" mode shows
+// read-only cards that open the cleaning).
 export async function DailyView({
   date,
-  building,
+  buildings,
   link,
+  mode,
 }: {
   date: string;
-  building: string;
+  buildings: string[];
   link: (params: Record<string, string>) => string;
+  mode: "admin" | "team";
 }) {
   const [allCleanings, cleaners, allMaintenances] = await Promise.all([
     listCleanings({ from: date, to: date }),
-    listCleaners(),
-    listMaintenances({ from: date, to: date, status: "scheduled" }),
+    mode === "admin" ? listCleaners() : Promise.resolve([]),
+    mode === "admin" ? listMaintenances({ from: date, to: date, status: "scheduled" }) : Promise.resolve([]),
   ]);
-  const inBuilding = (b: string | null | undefined) => !building || (b ?? NO_BUILDING) === building;
-  const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuilding(c.property?.building));
-  const maintenances = allMaintenances.filter((m) => inBuilding(m.property?.building));
-
-  // Photos taken so far: checklist photos plus problem reports.
-  const supabase = await createClient();
-  const ids = cleanings.map((c) => c.id);
-  const [{ data: taskPhotos }, { data: issuePhotos }] = ids.length
-    ? await Promise.all([
-        supabase.from("cleaning_tasks").select("cleaning_id").in("cleaning_id", ids).not("photo_path", "is", null),
-        supabase.from("issues").select("cleaning_id, photo_paths").in("cleaning_id", ids),
-      ])
-    : [{ data: [] }, { data: [] }];
-  const photos = new Map<string, number>();
-  for (const t of taskPhotos ?? []) photos.set(t.cleaning_id, (photos.get(t.cleaning_id) ?? 0) + 1);
-  for (const i of issuePhotos ?? []) {
-    photos.set(i.cleaning_id, (photos.get(i.cleaning_id) ?? 0) + i.photo_paths.length);
-  }
+  const cleanings = allCleanings.filter((c) => c.status !== "cancelled" && inBuildings(buildings, c.property?.building));
+  const maintenances = allMaintenances.filter((m) => inBuildings(buildings, m.property?.building));
+  const photos = await countPhotos(cleanings.map((c) => c.id));
 
   const sameDay = (c: (typeof cleanings)[number]) => c.next_checkin === c.date;
   const done = cleanings.filter((c) => c.status === "completed").length;
@@ -73,7 +60,7 @@ export async function DailyView({
       {urgent > 0 && (
         <p className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 font-medium text-red-700 ring-1 ring-red-200">
           <FlameIcon />
-          {urgent} {urgent === 1 ? "entrada no mesmo dia" : "entradas no mesmo dia"} — limpar primeiro
+          {urgent} {urgent === 1 ? "entrada urgente" : "entradas urgentes"} {isToday ? "hoje" : "neste dia"}
         </p>
       )}
 
@@ -94,9 +81,13 @@ export async function DailyView({
                 badge={<UrgentBadge count={items.filter(sameDay).length} singular="entrada" plural="entradas" />}
               >
                 <div className="space-y-3 p-3">
-                  {items.map((c) => (
-                    <DailyCleaningCard key={c.id} cleaning={c} cleaners={cleaners} photos={photos.get(c.id) ?? 0} />
-                  ))}
+                  {items.map((c) =>
+                    mode === "admin" ? (
+                      <DailyCleaningCard key={c.id} cleaning={c} cleaners={cleaners} photos={photos.get(c.id) ?? 0} />
+                    ) : (
+                      <TeamCleaningCard key={c.id} cleaning={c} photos={photos.get(c.id) ?? 0} />
+                    ),
+                  )}
                 </div>
               </BuildingAccordion>
             );
@@ -104,31 +95,33 @@ export async function DailyView({
         </div>
       )}
 
-      <section className="pt-2">
-        <p className="text-xs font-semibold tracking-wide text-brand-700 uppercase">Agenda operacional</p>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Manutenções do dia</h2>
-          <Link href={`/admin/manutencoes?dia=${date}`} className="text-sm font-medium text-brand-700">
-            Agendar →
-          </Link>
-        </div>
-        {maintenances.length === 0 ? (
-          <EmptyState>Nenhuma manutenção programada para este dia.</EmptyState>
-        ) : (
-          <Card className="divide-y divide-slate-100 p-0 sm:p-0">
-            {maintenances.map((m) => (
-              <Link key={m.id} href="/admin/manutencoes" className="block px-4 py-3 hover:bg-slate-50">
-                <p className="font-medium">{m.title}</p>
-                <p className="text-sm text-slate-500">
-                  {aptLabel(m.property)}
-                  {m.time && ` · ${formatTime(m.time)}`}
-                  {m.assignee && ` · ${m.assignee}`}
-                </p>
-              </Link>
-            ))}
-          </Card>
-        )}
-      </section>
+      {mode === "admin" && (
+        <section className="pt-2">
+          <p className="text-xs font-semibold tracking-wide text-brand-700 uppercase">Agenda operacional</p>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Manutenções do dia</h2>
+            <Link href={`/admin/manutencoes?dia=${date}`} className="text-sm font-medium text-brand-700">
+              Agendar →
+            </Link>
+          </div>
+          {maintenances.length === 0 ? (
+            <EmptyState>Nenhuma manutenção programada para este dia.</EmptyState>
+          ) : (
+            <Card className="divide-y divide-slate-100 p-0 sm:p-0">
+              {maintenances.map((m) => (
+                <Link key={m.id} href="/admin/manutencoes" className="block px-4 py-3 hover:bg-slate-50">
+                  <p className="font-medium">{m.title}</p>
+                  <p className="text-sm text-slate-500">
+                    {aptLabel(m.property)}
+                    {m.time && ` · ${formatTime(m.time)}`}
+                    {m.assignee && ` · ${m.assignee}`}
+                  </p>
+                </Link>
+              ))}
+            </Card>
+          )}
+        </section>
+      )}
     </div>
   );
 }

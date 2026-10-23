@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui";
-import { NO_BUILDING } from "@/lib/buildings";
+import { inBuildings } from "@/lib/buildings";
 import { listCleanings } from "@/lib/data";
 import { addMonths, daysInMonth, formatMonth, today } from "@/lib/dates";
 
@@ -8,18 +8,18 @@ const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export async function MonthlyView({
   month,
-  building,
+  buildings,
   link,
 }: {
   month: string;
-  building: string;
+  buildings: string[];
   link: (params: Record<string, string>) => string;
 }) {
   const days = daysInMonth(month);
   const first = `${month}-01`;
   const last = `${month}-${String(days).padStart(2, "0")}`;
   const cleanings = (await listCleanings({ from: first, to: last })).filter(
-    (c) => c.status !== "cancelled" && (!building || (c.property?.building ?? NO_BUILDING) === building),
+    (c) => c.status !== "cancelled" && inBuildings(buildings, c.property?.building),
   );
 
   const perDay = new Map<string, { total: number; sameDay: number; done: number }>();

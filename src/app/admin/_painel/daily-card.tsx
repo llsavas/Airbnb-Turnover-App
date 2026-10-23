@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { AutoSubmitSelect, SubmitButton } from "@/components/forms";
-import { FlameIcon, StatusBadge, buttonClass } from "@/components/ui";
+import { FlameIcon, StatusBadge } from "@/components/ui";
 import { formatHour, formatHourOf, formatShortDate } from "@/lib/dates";
 import type { CleaningWithRelations, Profile } from "@/lib/types";
 import { assignCleaner, setReleasedEarly } from "../limpezas/actions";
+import { DateMover } from "./date-mover";
 import { NotesBox } from "./notes-box";
 
-function aptTitle(name: string | undefined) {
+export function aptTitle(name: string | undefined) {
   const number = name?.match(/^\d+/)?.[0];
   return number ? `Apto ${number}` : (name ?? "Imóvel removido");
 }
@@ -25,6 +26,54 @@ export function scheduleLine(cleaning: CleaningWithRelations) {
   return parts.join(" | ");
 }
 
+function Badges({ cleaning }: { cleaning: CleaningWithRelations }) {
+  const sameDay = cleaning.next_checkin === cleaning.date;
+  if (!sameDay && !cleaning.released_at) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {sameDay && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+          <FlameIcon /> Entrada no mesmo dia
+        </span>
+      )}
+      {cleaning.released_at && cleaning.status === "scheduled" && (
+        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+          Liberado às {formatHourOf(cleaning.released_at)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function cardRing(cleaning: CleaningWithRelations) {
+  const urgent = cleaning.next_checkin === cleaning.date && cleaning.status !== "completed";
+  return urgent ? "ring-2 ring-red-700" : "ring-1 ring-slate-200";
+}
+
+// Team app: tap the card to open the cleaning.
+export function TeamCleaningCard({ cleaning, photos }: { cleaning: CleaningWithRelations; photos: number }) {
+  return (
+    <Link
+      href={`/limpezas/${cleaning.id}`}
+      className={`flex items-center justify-between gap-3 rounded-xl bg-surface p-4 transition hover:bg-slate-50 ${cardRing(cleaning)}`}
+    >
+      <div className="min-w-0 space-y-2">
+        <div>
+          <p className="text-lg font-bold">{aptTitle(cleaning.property?.name)}</p>
+          <p className="text-xs text-slate-500">{photos} foto(s)</p>
+          <Badges cleaning={cleaning} />
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
+          <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Observações do admin</p>
+          <p>{scheduleLine(cleaning)}</p>
+          {cleaning.notes && <p className="whitespace-pre-line">{cleaning.notes}</p>}
+        </div>
+      </div>
+      <StatusBadge status={cleaning.status} />
+    </Link>
+  );
+}
+
 export function DailyCleaningCard({
   cleaning,
   cleaners,
@@ -34,38 +83,24 @@ export function DailyCleaningCard({
   cleaners: Profile[];
   photos: number;
 }) {
-  const sameDay = cleaning.next_checkin === cleaning.date;
   const open = cleaning.status === "scheduled" || cleaning.status === "in_progress";
 
   return (
-    <div
-      className={`space-y-3 rounded-xl bg-surface p-4 ring-1 ${
-        sameDay && open ? "ring-2 ring-red-700" : "ring-slate-200"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
+    <div className={`space-y-3 rounded-xl bg-surface p-4 ${cardRing(cleaning)}`}>
+      {/* Tapping the top of the card opens the cleaning to start or finish it. */}
+      <Link
+        href={`/limpezas/${cleaning.id}?de=admin`}
+        className="-m-2 flex items-start justify-between gap-3 rounded-lg p-2 hover:bg-slate-50"
+      >
         <div className="min-w-0">
-          <Link href={`/admin/limpezas/${cleaning.id}`} className="font-semibold hover:underline">
-            {aptTitle(cleaning.property?.name)}
-          </Link>
+          <p className="text-lg font-bold">{aptTitle(cleaning.property?.name)}</p>
           <p className="text-xs text-slate-500">
             {cleaning.cleaner?.full_name ?? "Sem responsável"} · {photos} foto(s)
           </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {sameDay && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
-                <FlameIcon /> Entrada no mesmo dia
-              </span>
-            )}
-            {cleaning.released_at && (
-              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
-                Liberado às {formatHourOf(cleaning.released_at)}
-              </span>
-            )}
-          </div>
+          <Badges cleaning={cleaning} />
         </div>
         <StatusBadge status={cleaning.status} />
-      </div>
+      </Link>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         {open ? (
@@ -81,9 +116,7 @@ export function DailyCleaningCard({
         ) : (
           <span className="text-sm text-slate-600">{cleaning.cleaner?.full_name ?? "—"}</span>
         )}
-        <Link href={`/admin/limpezas/${cleaning.id}`} className={buttonClass("secondary", "px-3 py-1.5 text-xs")}>
-          Editar data de limpeza
-        </Link>
+        <DateMover cleaningId={cleaning.id} date={cleaning.date} />
         {cleaning.status === "scheduled" && (
           <form action={setReleasedEarly.bind(null, cleaning.id, !cleaning.released_at)}>
             <SubmitButton variant="secondary" className="px-3 py-1.5 text-xs">

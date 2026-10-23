@@ -3,18 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, FlameIcon, Input, StatusBadge } from "@/components/ui";
-import { formatDateTime, formatDay, formatHourOf, formatShortDate, formatTime } from "@/lib/dates";
+import { requireUser } from "@/lib/auth";
+import { formatDateTime, formatDayShort, formatHourOf } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
 import {
   ISSUE_CATEGORY_LABELS,
-  type Cleaning,
   type CleaningTask,
+  type CleaningWithRelations,
   type InventoryItem,
   type Issue,
   type Property,
   type PropertyInventory,
 } from "@/lib/types";
+import { aptTitle, scheduleLine } from "../../admin/_painel/daily-card";
 import { completeCleaning, saveInventory, startCleaning } from "../actions";
 import { Checklist } from "./checklist";
 import { IssueForm } from "./issue-form";
@@ -23,29 +25,24 @@ export const metadata: Metadata = { title: "Limpeza" };
 // Photo uploads from phones on mobile data.
 export const maxDuration = 60;
 
-type CleaningDetail = Cleaning & { property: Property | null };
-
-function Info({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</p>
-      <div className="mt-0.5 whitespace-pre-line text-slate-900">{children}</div>
-    </div>
-  );
-}
+type CleaningDetail = CleaningWithRelations & {
+  property: (Property & { building: string | null }) | null;
+};
 
 export default async function CleaningDetailPage({ params, searchParams }: PageProps<"/limpezas/[id]">) {
+  const profile = await requireUser();
   const { id } = await params;
-  // Keeps the admin's "Ver como" choice when going back to the list.
-  const { como } = await searchParams;
-  const back = typeof como === "string" ? `/limpezas?como=${como}` : "/limpezas";
+  const { de } = await searchParams;
   const supabase = await createClient();
   const { data: cleaning } = await supabase
     .from("cleanings")
-    .select("*, property:properties(*)")
+    .select("*, property:properties(*), cleaner:profiles!cleanings_cleaner_id_fkey(id, full_name)")
     .eq("id", id)
     .maybeSingle<CleaningDetail>();
   if (!cleaning) notFound();
+
+  const fromAdmin = de === "admin" && profile.role === "admin";
+  const back = fromAdmin ? `/admin?dia=${cleaning.date}` : `/limpezas?dia=${cleaning.date}`;
 
   const [{ data: tasks }, { data: items }, { data: stock }, { data: issues }] = await Promise.all([
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
@@ -55,108 +52,92 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       .select("*")
       .eq("property_id", cleaning.property_id)
       .overrideTypes<PropertyInventory[], { merge: false }>(),
-    supabase
-      .from("issues")
-      .select("*")
-      .eq("cleaning_id", id)
-      .order("created_at")
-      .overrideTypes<Issue[], { merge: false }>(),
+    supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
   ]);
   const photoUrls = await signedPhotoUrls((tasks ?? []).map((t) => t.photo_path));
   const lastCount = new Map((stock ?? []).map((s) => [s.item_id, s]));
   const inProgress = cleaning.status === "in_progress";
   const missing = (tasks ?? []).filter((t) => !t.done).length;
-
   const property = cleaning.property;
-  const address = [property?.address, property?.city].filter(Boolean).join(", ");
-  const mapsUrl = address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
-    : null;
+  const sameDay = cleaning.next_checkin === cleaning.date;
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Link href={back} className="text-sm font-medium text-brand-700">
-        ← Minhas limpezas
+      <Link href={back} className="text-sm font-medium text-slate-600 hover:text-slate-900">
+        ‹ Voltar
       </Link>
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold">{property?.name}</h1>
-          <p className="text-sm text-slate-500 capitalize">{formatDay(cleaning.date)}</p>
-        </div>
-        <StatusBadge status={cleaning.status} />
-      </div>
-
-      <Card className="space-y-4">
-        {address && (
-          <Info label="Endereço">
-            {address}
-            {mapsUrl && (
-              <a href={mapsUrl} target="_blank" rel="noreferrer" className="ml-2 text-sm font-medium text-brand-700">
-                Abrir no mapa
-              </a>
+      <Card className={`space-y-3 ${sameDay && cleaning.status !== "completed" ? "ring-2 ring-red-700" : ""}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {property?.building && (
+              <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{property.building}</p>
             )}
-          </Info>
-        )}
-        {cleaning.released_at && cleaning.status === "scheduled" && (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
-            O hóspede já saiu: liberado às {formatHourOf(cleaning.released_at)}, pode começar.
-          </p>
-        )}
-        {cleaning.next_checkin === cleaning.date && cleaning.status !== "completed" && (
-          <p className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-red-200">
-            <FlameIcon /> Entrada no mesmo dia: precisa estar pronto até {formatTime(cleaning.ends_at) || "o check-in"}
-          </p>
-        )}
-        <div className="grid grid-cols-2 gap-4">
-          <Info label="Liberado a partir de">
-            {cleaning.released_at ? formatHourOf(cleaning.released_at) : formatTime(cleaning.starts_at) || "—"}
-          </Info>
-          <Info label="Pronto até">{formatTime(cleaning.ends_at) || "—"}</Info>
-        </div>
-        {(cleaning.next_checkin || cleaning.guest_count) && (
-          <div className="grid grid-cols-2 gap-4">
-            {cleaning.next_checkin && (
-              <Info label="Próximo check-in">{formatShortDate(cleaning.next_checkin)}</Info>
-            )}
-            {cleaning.guest_count && <Info label="Preparar para">{cleaning.guest_count} hóspede(s)</Info>}
+            <h1 className="text-2xl font-bold">{aptTitle(property?.name)}</h1>
+            <p className="text-sm text-slate-500">{formatDayShort(cleaning.date)}</p>
           </div>
-        )}
-        {property?.access_instructions && (
-          <Info label="Como entrar">{property.access_instructions}</Info>
-        )}
-        {cleaning.notes && <Info label="Observações desta limpeza">{cleaning.notes}</Info>}
-        {property?.notes && <Info label="Sobre o imóvel">{property.notes}</Info>}
+          <StatusBadge status={cleaning.status} />
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          {sameDay && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700 ring-1 ring-red-200">
+              <FlameIcon /> Check-in no mesmo dia
+            </span>
+          )}
+          {cleaning.released_at && cleaning.status === "scheduled" && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 ring-1 ring-emerald-200">
+              Liberado às {formatHourOf(cleaning.released_at)}: pode começar
+            </span>
+          )}
+          {cleaning.started_at && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+              Início {formatDateTime(cleaning.started_at)}
+            </span>
+          )}
+          {cleaning.completed_at && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+              Fim {formatDateTime(cleaning.completed_at)}
+            </span>
+          )}
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-200">
+          <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">Observações do admin</p>
+          <p>{scheduleLine(cleaning)}</p>
+          {cleaning.notes && <p className="whitespace-pre-line">{cleaning.notes}</p>}
+          {property?.access_instructions && (
+            <p className="mt-1 whitespace-pre-line text-slate-600">Acesso: {property.access_instructions}</p>
+          )}
+        </div>
       </Card>
 
       {cleaning.status === "scheduled" && (
         <ActionForm action={startCleaning.bind(null, id)}>
-          <SubmitButton className="w-full py-4 text-base">Iniciar limpeza</SubmitButton>
+          <SubmitButton variant="go" className="w-full py-4 text-base">
+            ▷ Iniciar limpeza
+          </SubmitButton>
         </ActionForm>
       )}
 
-      {tasks && tasks.length > 0 && (
+      {inProgress && tasks && tasks.length > 0 && (
         <Checklist
           cleaningId={id}
-          editable={inProgress}
+          editable
           tasks={tasks.map((t) => ({ ...t, photo_url: t.photo_path ? (photoUrls.get(t.photo_path) ?? null) : null }))}
         />
       )}
 
       {inProgress && items && items.length > 0 && (
-        <Card>
-          <h2 className="font-semibold">Estoque</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            Conte o que ficou no apartamento depois de repor. O número entre parênteses é o mínimo.
-          </p>
-          <ActionForm action={saveInventory.bind(null, id)} className="space-y-2">
+        <details className="rounded-xl bg-surface shadow-sm ring-1 ring-slate-200">
+          <summary className="cursor-pointer px-4 py-3 font-semibold">Estoque</summary>
+          <ActionForm action={saveInventory.bind(null, id)} className="space-y-2 px-4 pb-4">
+            <p className="text-sm text-slate-500">Quanto ficou no apartamento depois de repor (mínimo entre parênteses).</p>
             {items.map((item) => {
               const last = lastCount.get(item.id);
               const par = last?.par_level ?? item.default_par;
               return (
                 <label key={item.id} className="flex items-center justify-between gap-3">
                   <span className="text-[15px]">
-                    {item.name} <span className="text-xs text-slate-500">(mín. {par} {item.unit})</span>
+                    {item.name} <span className="text-xs text-slate-500">({par})</span>
                   </span>
                   <div className="w-20 shrink-0">
                     <Input
@@ -175,39 +156,44 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
               Salvar estoque
             </SubmitButton>
           </ActionForm>
-        </Card>
+        </details>
       )}
 
       {issues && issues.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="font-semibold">Problemas reportados</h2>
           {issues.map((issue) => (
             <div key={issue.id} className="rounded-lg bg-red-50 px-3 py-2 text-sm">
-              <p className="font-medium text-red-800">{ISSUE_CATEGORY_LABELS[issue.category]}</p>
+              <p className="font-medium text-red-800">⚠ {ISSUE_CATEGORY_LABELS[issue.category]}</p>
               <p className="text-red-900">{issue.description}</p>
-              {issue.status === "resolved" && <p className="mt-1 text-xs text-emerald-700">Resolvido</p>}
             </div>
           ))}
         </Card>
       )}
 
-      {cleaning.status !== "completed" && cleaning.status !== "cancelled" && <IssueForm cleaningId={id} />}
+      {inProgress && <IssueForm cleaningId={id} />}
 
       {inProgress && (
         <ActionForm action={completeCleaning.bind(null, id)}>
-          <p className="mb-2 text-center text-sm text-slate-500">
-            Iniciada às {formatDateTime(cleaning.started_at!).split(" ").pop()}
-            {missing > 0 && ` · faltam ${missing} itens do checklist`}
-          </p>
+          {missing > 0 && (
+            <p className="mb-2 text-center text-sm text-slate-500">
+              Faltam {missing} itens do checklist
+              {profile.role === "admin" && " (como admin, você pode concluir mesmo assim)"}
+            </p>
+          )}
           <SubmitButton className="w-full py-4 text-base" confirm="Confirmar que a limpeza foi concluída?">
-            Concluir limpeza
+            ✓ Concluir limpeza
           </SubmitButton>
         </ActionForm>
       )}
+
       {cleaning.status === "completed" && cleaning.completed_at && (
-        <p className="rounded-lg bg-emerald-50 p-3 text-center text-sm font-medium text-emerald-700">
-          Limpeza concluída em {formatDateTime(cleaning.completed_at)}. Obrigado!
-        </p>
+        <Card className="text-center">
+          <p className="font-semibold">Limpeza finalizada</p>
+          <p className="text-sm text-slate-500">
+            {formatDateTime(cleaning.completed_at)}
+            {cleaning.cleaner && ` · ${cleaning.cleaner.full_name}`}
+          </p>
+        </Card>
       )}
     </div>
   );

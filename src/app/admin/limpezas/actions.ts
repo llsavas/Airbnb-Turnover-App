@@ -70,10 +70,13 @@ export async function updateCleaning(
     if (!STATUSES.includes(status)) throw new FormError("Situação inválida.");
 
     const supabase = await createClient();
+    const { data: current } = await supabase.from("cleanings").select("date, date_moved").eq("id", id).single();
     const { error } = await supabase
       .from("cleanings")
       .update({
         date,
+        // A date changed by hand is kept by the Hospitable sync.
+        date_moved: current?.date_moved || current?.date !== date,
         cleaner_id: text(formData, "cleaner_id"),
         starts_at: text(formData, "starts_at"),
         ends_at: text(formData, "ends_at"),
@@ -138,4 +141,20 @@ export async function setReleasedEarly(id: string, released: boolean) {
     .eq("id", id);
   if (error) throw error;
   revalidateCleanings();
+}
+
+// "Editar data de limpeza": the cleaning was moved to another day. The
+// Hospitable sync keeps this date from now on.
+export async function moveCleaningDate(id: string, date: string): Promise<FormState> {
+  try {
+    await requireAdmin();
+    if (!isValidDate(date)) throw new FormError("Data inválida.");
+    const supabase = await createClient();
+    const { error } = await supabase.from("cleanings").update({ date, date_moved: true }).eq("id", id);
+    if (error) throw error;
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidateCleanings();
+  return null;
 }

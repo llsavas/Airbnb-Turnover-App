@@ -53,7 +53,7 @@ export function SubmitButton({
   confirm,
 }: {
   children: ReactNode;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "go";
   className?: string;
   confirm?: string;
 }) {

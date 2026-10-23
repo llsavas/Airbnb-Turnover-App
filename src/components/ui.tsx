@@ -11,6 +11,8 @@ const buttonVariants = {
   secondary: "bg-surface text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
   danger: "bg-surface text-red-700 ring-1 ring-red-300 hover:bg-red-50",
   ghost: "text-slate-700 hover:bg-slate-100",
+  // "Iniciar limpeza": dark text on teal.
+  go: "bg-teal-400 text-slate-50 hover:bg-teal-300",
 };
 
 export function buttonClass(variant: keyof typeof buttonVariants = "primary", extra?: string) {
@@ -72,9 +74,10 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
   return <textarea className={cx(inputClass, className)} rows={3} {...props} />;
 }
 
+// Pendente red, Iniciado yellow, Concluído green.
 const statusStyles: Record<CleaningStatus, string> = {
-  scheduled: "bg-sky-50 text-sky-700 ring-sky-200",
-  in_progress: "bg-amber-50 text-amber-800 ring-amber-200",
+  scheduled: "bg-red-50 text-red-700 ring-red-200",
+  in_progress: "bg-amber-50 text-amber-700 ring-amber-200",
   completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   cancelled: "bg-slate-100 text-slate-500 ring-slate-200",
 };
@@ -83,10 +86,11 @@ export function StatusBadge({ status }: { status: CleaningStatus }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1",
         statusStyles[status],
       )}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
       {STATUS_LABELS[status]}
     </span>
   );

@@ -8,6 +8,8 @@ export type Profile = {
   phone: string | null;
   role: UserRole;
   active: boolean;
+  // Buildings this team member works in (they choose them in the app).
+  buildings: string[];
 };
 
 export type Property = {
@@ -50,10 +52,10 @@ export type CleaningWithRelations = Cleaning & {
 };
 
 export const STATUS_LABELS: Record<CleaningStatus, string> = {
-  scheduled: "Agendada",
-  in_progress: "Em andamento",
-  completed: "Concluída",
-  cancelled: "Cancelada",
+  scheduled: "Pendente",
+  in_progress: "Iniciado",
+  completed: "Concluído",
+  cancelled: "Cancelado",
 };
 
 export const SOURCE_LABELS: Record<CleaningSource, string> = {
