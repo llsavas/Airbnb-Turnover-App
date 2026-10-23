@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { aptLabel, groupByBuilding } from "@/lib/buildings";
 import { listMaintenances, listProperties } from "@/lib/data";
 import { addDays, formatDay, formatShortDate, formatTime, isValidDate, today } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
-import { ISSUE_CATEGORY_LABELS, type Issue, type MaintenanceWithProperty } from "@/lib/types";
+import { ISSUE_CATEGORY_LABELS, type Contractor, type Issue, type MaintenanceWithProperty } from "@/lib/types";
 import { createMaintenance, setMaintenanceStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Manutenções" };
@@ -23,7 +24,8 @@ function MaintenanceRow({ m, past }: { m: MaintenanceWithProperty; past?: boolea
         </p>
         {m.description && <p className="mt-1 text-sm whitespace-pre-line text-slate-700">{m.description}</p>}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {m.contractor?.phone && m.status === "scheduled" && <WhatsAppButton phone={m.contractor.phone} />}
         {m.status === "scheduled" ? (
           <>
             <form action={setMaintenanceStatus.bind(null, m.id, "done")}>
@@ -51,14 +53,16 @@ export default async function MaintenancePage({ searchParams }: PageProps<"/admi
   const { dia, problema } = await searchParams;
   const day = today();
   const supabase = await createClient();
-  const [properties, upcoming, recent, { data: issue }] = await Promise.all([
+  const [properties, upcoming, recent, { data: issue }, { data: contractorRows }] = await Promise.all([
     listProperties(),
     listMaintenances({ from: addDays(day, -60), to: addDays(day, 120), status: "scheduled" }),
     listMaintenances({ from: addDays(day, -30), to: addDays(day, 1) }),
     typeof problema === "string"
       ? supabase.from("issues").select("*").eq("id", problema).maybeSingle<Issue>()
       : Promise.resolve({ data: null }),
+    supabase.from("contractors").select("*").eq("active", true).order("name"),
   ]);
+  const contractors = (contractorRows ?? []) as Contractor[];
   const overdue = upcoming.filter((m) => m.date < day);
   const scheduled = upcoming.filter((m) => m.date >= day);
   const days = [...new Set(scheduled.map((m) => m.date))];
@@ -154,7 +158,23 @@ export default async function MaintenancePage({ searchParams }: PageProps<"/admi
                 placeholder="Ex.: Trocar resistência do chuveiro"
               />
             </Field>
-            <Field label="Quem vai fazer">
+            {contractors.length > 0 && (
+              <Field label="Manutencista">
+                <Select name="contractor_id" defaultValue="">
+                  <option value="">Nenhum / outro</option>
+                  {contractors.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.specialty && ` (${c.specialty})`}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            <Field
+              label={contractors.length ? "Ou quem vai fazer" : "Quem vai fazer"}
+              hint="Cadastre manutencistas em Responsáveis → Manutenção."
+            >
               <Input name="assignee" placeholder="Ex.: João eletricista (51) 99999-0000" />
             </Field>
             <Field label="Detalhes">

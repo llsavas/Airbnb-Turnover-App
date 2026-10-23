@@ -13,12 +13,19 @@ export async function createMaintenance(_: FormState, formData: FormData): Promi
     const date = requiredText(formData, "date", "Data");
     if (!isValidDate(date)) throw new FormError("Data inválida.");
     const supabase = await createClient();
+    const contractorId = text(formData, "contractor_id");
+    let assignee = text(formData, "assignee");
+    if (contractorId && !assignee) {
+      const { data: contractor } = await supabase.from("contractors").select("name").eq("id", contractorId).single();
+      assignee = contractor?.name ?? null;
+    }
     const { error } = await supabase.from("maintenances").insert({
       property_id: requiredText(formData, "property_id", "Imóvel"),
       date,
       time: text(formData, "time"),
       title: requiredText(formData, "title", "O que fazer"),
-      assignee: text(formData, "assignee"),
+      contractor_id: contractorId,
+      assignee,
       description: text(formData, "description"),
       issue_id: text(formData, "issue_id"),
     });

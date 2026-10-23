@@ -9,7 +9,7 @@ const NAV = [
   { href: "/admin/estoque", label: "Estoque" },
   { href: "/admin/checklist", label: "Checklist" },
   { href: "/admin/imoveis", label: "Imóveis" },
-  { href: "/admin/equipe", label: "Equipe" },
+  { href: "/admin/equipe", label: "Responsáveis" },
 ];
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {

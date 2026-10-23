@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { FormError, requiredText, text, toFormState, type FormState } from "@/lib/form";
 import { loginToEmail } from "@/lib/usernames";
 
@@ -80,4 +80,33 @@ export async function updateCleaner(
   }
   revalidatePath("/admin/equipe");
   redirect("/admin/equipe");
+}
+
+// Maintenance contractors ("Responsáveis → Manutenção").
+export async function createContractor(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await requireAdmin();
+    const supabase = await createClient();
+    const { error } = await supabase.from("contractors").insert({
+      name: requiredText(formData, "name", "Nome"),
+      phone: text(formData, "phone"),
+      specialty: text(formData, "specialty"),
+    });
+    if (error) throw error;
+  } catch (error) {
+    return toFormState(error);
+  }
+  revalidatePath("/admin/equipe");
+  revalidatePath("/admin/manutencoes");
+  return { success: "Manutencista adicionado." };
+}
+
+export async function deleteContractor(id: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+  // Past maintenance keeps the name in its "Quem vai fazer" text.
+  const { error } = await supabase.from("contractors").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/admin/equipe");
+  revalidatePath("/admin/manutencoes");
 }

@@ -192,15 +192,41 @@ export type Maintenance = {
   assignee: string | null;
   status: MaintenanceStatus;
   issue_id: string | null;
+  contractor_id: string | null;
   done_at: string | null;
 };
 
 export type MaintenanceWithProperty = Maintenance & {
   property: Pick<Property, "id" | "name" | "building"> | null;
+  contractor: { name: string; phone: string | null } | null;
 };
 
 export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
   scheduled: "Agendada",
   done: "Feita",
   cancelled: "Cancelada",
+};
+
+export type PropertyLinen = {
+  id: string;
+  property_id: string;
+  item: string;
+  quantity: number;
+  position: number;
+};
+
+export type ReferencePhoto = {
+  id: string;
+  property_id: string;
+  path: string;
+  caption: string | null;
+  position: number;
+};
+
+export type Contractor = {
+  id: string;
+  name: string;
+  phone: string | null;
+  specialty: string | null;
+  active: boolean;
 };

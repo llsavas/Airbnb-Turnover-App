@@ -118,7 +118,7 @@ export async function listMaintenances(filters: {
   const supabase = await createClient();
   let query = supabase
     .from("maintenances")
-    .select("*, property:properties(id, name, building)")
+    .select("*, property:properties(id, name, building), contractor:contractors(name, phone)")
     .gte("date", filters.from)
     .lte("date", filters.to)
     .order("date")

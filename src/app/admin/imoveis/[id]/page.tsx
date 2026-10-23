@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/ui";
+import Link from "next/link";
+import { PageHeader, buttonClass } from "@/components/ui";
 import { buildingNames } from "@/lib/buildings";
 import { listCleaners, listProperties } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
@@ -22,7 +23,11 @@ export default async function EditPropertyPage({ params }: PageProps<"/admin/imo
 
   return (
     <>
-      <PageHeader title={property.name} />
+      <PageHeader title={property.name}>
+        <Link href={`/admin/imoveis/${id}/padrao`} className={buttonClass()}>
+          Padrão do apartamento
+        </Link>
+      </PageHeader>
       <PropertyForm
         action={updateProperty.bind(null, id)}
         property={property}

@@ -15,6 +15,8 @@ import {
   type Issue,
   type Property,
   type PropertyInventory,
+  type PropertyLinen,
+  type ReferencePhoto,
 } from "@/lib/types";
 import { aptTitle, scheduleLine } from "../../admin/_painel/daily-card";
 import { completeCleaning, saveInventory, startCleaning } from "../actions";
@@ -44,7 +46,15 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
   const fromAdmin = de === "admin" && profile.role === "admin";
   const back = fromAdmin ? `/admin?dia=${cleaning.date}` : `/limpezas?dia=${cleaning.date}`;
 
-  const [{ data: tasks }, { data: items }, { data: stock }, { data: issues }] = await Promise.all([
+  const [
+    { data: tasks },
+    { data: items },
+    { data: stock },
+    { data: issues },
+    { data: standard },
+    { data: linens },
+    { data: refPhotos },
+  ] = await Promise.all([
     supabase.from("cleaning_tasks").select("*").eq("cleaning_id", id).order("position").overrideTypes<CleaningTask[], { merge: false }>(),
     supabase.from("inventory_items").select("*").eq("active", true).order("position").overrideTypes<InventoryItem[], { merge: false }>(),
     supabase
@@ -53,8 +63,25 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       .eq("property_id", cleaning.property_id)
       .overrideTypes<PropertyInventory[], { merge: false }>(),
     supabase.from("issues").select("*").eq("cleaning_id", id).order("created_at").overrideTypes<Issue[], { merge: false }>(),
+    supabase.from("property_standards").select("notes").eq("property_id", cleaning.property_id).maybeSingle(),
+    supabase
+      .from("property_linens")
+      .select("*")
+      .eq("property_id", cleaning.property_id)
+      .order("position")
+      .overrideTypes<PropertyLinen[], { merge: false }>(),
+    supabase
+      .from("property_reference_photos")
+      .select("*")
+      .eq("property_id", cleaning.property_id)
+      .order("position")
+      .overrideTypes<ReferencePhoto[], { merge: false }>(),
   ]);
-  const photoUrls = await signedPhotoUrls((tasks ?? []).map((t) => t.photo_path));
+  const photoUrls = await signedPhotoUrls([
+    ...(tasks ?? []).map((t) => t.photo_path),
+    ...(refPhotos ?? []).map((p) => p.path),
+  ]);
+  const hasStandard = !!standard?.notes || !!linens?.length || !!refPhotos?.length;
   const lastCount = new Map((stock ?? []).map((s) => [s.item_id, s]));
   const inProgress = cleaning.status === "in_progress";
   const missing = (tasks ?? []).filter((t) => !t.done).length;
@@ -109,6 +136,39 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
           )}
         </div>
       </Card>
+
+      {hasStandard && cleaning.status !== "completed" && (
+        <details className="rounded-xl bg-surface shadow-sm ring-1 ring-slate-200" open={cleaning.status === "scheduled"}>
+          <summary className="cursor-pointer px-4 py-3 font-semibold">Padrão deste apartamento</summary>
+          <div className="space-y-3 px-4 pb-4 text-sm">
+            {standard?.notes && <p className="whitespace-pre-line">{standard.notes}</p>}
+            {linens && linens.length > 0 && (
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {linens.map((l) => (
+                  <li key={l.id} className="flex justify-between gap-2">
+                    <span className="text-slate-700">{l.item}</span>
+                    <span className="font-semibold tabular-nums">{l.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {refPhotos && refPhotos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {refPhotos.map((p) => {
+                  const url = photoUrls.get(p.path);
+                  return url ? (
+                    <a key={p.id} href={url} target="_blank" rel="noreferrer" className="space-y-0.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- signed private URL */}
+                      <img src={url} alt={p.caption ?? ""} className="aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200" />
+                      {p.caption && <span className="block text-[11px] text-slate-500">{p.caption}</span>}
+                    </a>
+                  ) : null;
+                })}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       {cleaning.status === "scheduled" && (
         <ActionForm action={startCleaning.bind(null, id)}>

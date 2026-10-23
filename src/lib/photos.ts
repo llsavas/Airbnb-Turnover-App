@@ -18,9 +18,18 @@ export async function signedPhotoUrls(paths: (string | null)[]): Promise<Map<str
 // Stores a photo under the cleaning's folder and returns its path. Storage
 // policies only accept it if the user works on that cleaning.
 export async function uploadCleaningPhoto(cleaningId: string, file: File): Promise<string> {
+  return uploadPhoto(cleaningId, file);
+}
+
+// Reference photo of how an apartment should look ("Padrão"); admins only.
+export async function uploadReferencePhoto(propertyId: string, file: File): Promise<string> {
+  return uploadPhoto(`padrao/${propertyId}`, file);
+}
+
+async function uploadPhoto(folder: string, file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("O arquivo precisa ser uma foto.");
   const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const path = `${cleaningId}/${crypto.randomUUID()}.${extension}`;
+  const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   const supabase = await createClient();
   const { error } = await supabase.storage
     .from(PHOTO_BUCKET)
