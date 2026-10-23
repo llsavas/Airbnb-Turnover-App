@@ -105,6 +105,8 @@ export type Issue = {
   photo_paths: string[];
   status: IssueStatus;
   resolution: string | null;
+  // "After" photos sent when resolving.
+  resolution_photo_paths: string[];
   resolved_at: string | null;
   created_at: string;
 };

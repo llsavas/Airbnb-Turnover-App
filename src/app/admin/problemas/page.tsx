@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ActionForm, SubmitButton } from "@/components/forms";
-import { Card, EmptyState, Input, PageHeader } from "@/components/ui";
+import { BeforeAfter } from "@/components/before-after";
+import { SubmitButton } from "@/components/forms";
+import { ResolveIssue } from "@/components/resolve-issue";
+import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { listIssues } from "@/lib/data";
 import { formatDateTime } from "@/lib/dates";
 import { signedPhotoUrls } from "@/lib/photos";
 import { ISSUE_CATEGORY_LABELS, ISSUE_URGENCY_LABELS, type IssueUrgency } from "@/lib/types";
-import { reopenIssue, resolveIssue } from "./actions";
+import { reopenIssue } from "./actions";
 
 export const metadata: Metadata = { title: "Problemas" };
 
@@ -23,7 +25,8 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
   const resolved = status === "resolvidos";
   const issues = await listIssues(resolved ? "resolved" : "open");
   if (!resolved) issues.sort((a, b) => URGENCY_ORDER.indexOf(a.urgency) - URGENCY_ORDER.indexOf(b.urgency));
-  const photoUrls = await signedPhotoUrls(issues.flatMap((i) => i.photo_paths));
+  const photoUrls = await signedPhotoUrls(issues.flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]));
+  const urls = (paths: string[]) => paths.flatMap((p) => (photoUrls.get(p) ? [photoUrls.get(p)!] : []));
 
   return (
     <>
@@ -63,19 +66,7 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
                 </span>
               </div>
               <p className="whitespace-pre-line">{issue.description}</p>
-              {issue.photo_paths.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {issue.photo_paths.map((path) => {
-                    const url = photoUrls.get(path);
-                    return url ? (
-                      <a key={path} href={url} target="_blank" rel="noreferrer">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- signed private URL */}
-                        <img src={url} alt="" className="h-24 w-24 rounded-lg object-cover ring-1 ring-slate-200" />
-                      </a>
-                    ) : null;
-                  })}
-                </div>
-              )}
+              <BeforeAfter before={urls(issue.photo_paths)} after={urls(issue.resolution_photo_paths)} />
               <div className="flex flex-wrap gap-4 text-sm font-medium">
                 {issue.cleaning_id && (
                   <Link href={`/admin/limpezas/${issue.cleaning_id}`} className="text-brand-700">
@@ -99,10 +90,9 @@ export default async function IssuesPage({ searchParams }: PageProps<"/admin/pro
                   </form>
                 </div>
               ) : (
-                <ActionForm action={resolveIssue.bind(null, issue.id)} className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                  <Input name="resolution" placeholder="O que foi feito? (opcional)" className="min-w-0 flex-1" />
-                  <SubmitButton>Marcar resolvido</SubmitButton>
-                </ActionForm>
+                <div className="border-t border-slate-100 pt-3">
+                  <ResolveIssue issueId={issue.id} cleaningId={issue.cleaning_id} />
+                </div>
               )}
             </Card>
           ))}

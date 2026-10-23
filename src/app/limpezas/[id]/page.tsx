@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BeforeAfter } from "@/components/before-after";
 import { ActionForm, SubmitButton } from "@/components/forms";
+import { ResolveIssue } from "@/components/resolve-issue";
 import { Card, FlameIcon, StatusBadge } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime, formatDayShort } from "@/lib/dates";
@@ -70,6 +72,7 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
   const photoUrls = await signedPhotoUrls([
     ...(tasks ?? []).map((t) => t.photo_path),
     ...(refPhotos ?? []).map((p) => p.path),
+    ...(issues ?? []).flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]),
   ]);
   const hasStandard = !!standard?.notes || !!linens?.length || !!refPhotos?.length;
   const inProgress = cleaning.status === "in_progress";
@@ -175,13 +178,32 @@ export default async function CleaningDetailPage({ params, searchParams }: PageP
       )}
 
       {issues && issues.length > 0 && (
-        <Card className="space-y-2">
-          {issues.map((issue) => (
-            <div key={issue.id} className="rounded-lg bg-red-50 px-3 py-2 text-sm">
-              <p className="font-medium text-red-800">⚠ {ISSUE_CATEGORY_LABELS[issue.category]}</p>
-              <p className="text-red-900">{issue.description}</p>
-            </div>
-          ))}
+        <Card className="space-y-3">
+          <h2 className="font-semibold">Problemas desta limpeza</h2>
+          {issues.map((issue) => {
+            const resolved = issue.status === "resolved";
+            return (
+              <div
+                key={issue.id}
+                className={`space-y-2 rounded-lg px-3 py-2 text-sm ring-1 ${
+                  resolved ? "bg-emerald-50 ring-emerald-200" : "bg-red-50 ring-red-200"
+                }`}
+              >
+                <p className={`font-medium ${resolved ? "text-emerald-700" : "text-red-800"}`}>
+                  {resolved ? "✓" : "⚠"} {ISSUE_CATEGORY_LABELS[issue.category]}
+                  {resolved && " · resolvido"}
+                </p>
+                <p>{issue.description}</p>
+                {issue.resolution && <p className="text-emerald-700">{issue.resolution}</p>}
+                <BeforeAfter
+                  size="h-16 w-16"
+                  before={issue.photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
+                  after={issue.resolution_photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
+                />
+                {!resolved && <ResolveIssue issueId={issue.id} cleaningId={id} />}
+              </div>
+            );
+          })}
         </Card>
       )}
 

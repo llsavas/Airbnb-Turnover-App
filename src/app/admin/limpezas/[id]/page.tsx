@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BeforeAfter } from "@/components/before-after";
 import { ActionForm, SubmitButton } from "@/components/forms";
 import { Card, Field, Input, PageHeader, Select, Textarea, buttonClass } from "@/components/ui";
 import { CLEANING_SELECT, listCleaners } from "@/lib/data";
@@ -36,7 +37,7 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
   const issues = (issueRows ?? []) as Issue[];
   const photoUrls = await signedPhotoUrls([
     ...tasks.map((t) => t.photo_path),
-    ...issues.flatMap((i) => i.photo_paths),
+    ...issues.flatMap((i) => [...i.photo_paths, ...i.resolution_photo_paths]),
   ]);
   const photoTasks = tasks.filter((t) => t.photo_path);
   const pendingTasks = tasks.filter((t) => !t.done);
@@ -179,16 +180,12 @@ export default async function EditCleaningPage({ params }: PageProps<"/admin/lim
                     {issue.status === "resolved" && <span className="ml-2 text-emerald-700">(resolvido)</span>}
                   </p>
                   <p className="text-red-900">{issue.description}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {issue.photo_paths.map((path) => {
-                      const url = photoUrls.get(path);
-                      return url ? (
-                        <a key={path} href={url} target="_blank" rel="noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element -- signed private URL */}
-                          <img src={url} alt="" className="h-20 w-20 rounded-lg object-cover" />
-                        </a>
-                      ) : null;
-                    })}
+                  {issue.resolution && <p className="mt-1 text-emerald-700">Resolvido: {issue.resolution}</p>}
+                  <div className="mt-2">
+                    <BeforeAfter
+                      before={issue.photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
+                      after={issue.resolution_photo_paths.flatMap((p) => photoUrls.get(p) ?? [])}
+                    />
                   </div>
                 </div>
               ))}

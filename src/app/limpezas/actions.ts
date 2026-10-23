@@ -144,3 +144,30 @@ export async function reportIssue(cleaningId: string, _: FormState, formData: Fo
   revalidatePath("/admin", "layout");
   return { success: "Problema enviado. A gestão já foi avisada." };
 }
+
+// Marks a problem as resolved, optionally with "after" photos and a note.
+// Used by the team on the cleaning page and by admins on Problemas.
+export async function resolveIssueWithPhotos(
+  issueId: string,
+  cleaningId: string | null,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    await requireUser();
+    const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+    if (files.length > 0 && !cleaningId) throw new FormError("Este problema não tem limpeza para guardar a foto.");
+    const paths = cleaningId ? await Promise.all(files.map((f) => uploadCleaningPhoto(cleaningId, f))) : [];
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("resolve_issue", {
+      issue_id: issueId,
+      resolution_text: text(formData, "resolution") ?? "",
+      photo_paths: paths,
+    });
+    if (error) return { error: error.message };
+  } catch (error) {
+    return toFormState(error);
+  }
+  if (cleaningId) revalidateCleaning(cleaningId);
+  revalidatePath("/admin", "layout");
+  return { success: "Problema resolvido." };
+}
